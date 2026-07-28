@@ -1,0 +1,57 @@
+# --- Planning / scratch (never committed) ---
+interview-prep-flashcards-BRIEF.md
+notes/
+scratch/
+*.handoff.md
+
+# --- Secrets / local config ---
+.env
+.env.*
+local.properties
+application-local.yml
+application-local.properties
+*.jks
+*.keystore
+*.p12
+
+# --- Gradle (both builds) ---
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# --- Java ---
+*.class
+*.jar
+*.war
+*.log
+out/
+bin/
+hs_err_pid*
+replay_pid*
+
+# --- Android ---
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+.cxx/
+app/release/
+release/
+.externalNativeBuild/
+
+# --- IDE ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+.DS_Store
+
+# --- Windows / OneDrive ---
+Thumbs.db
+desktop.ini
