@@ -1,0 +1,88 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundamentals interview prep (OS, DBMS, OOP, system design). Two Java halves: a Spring Boot backend that stores cards and progress and runs SM-2 scheduling, and a native Android client where the daily studying happens.
+
+**Both halves are Java, not Kotlin.** That is a deliberate constraint of the project, not an accident of scaffolding — the point is to demonstrate Java competency. Do not introduce Kotlin to either module.
+
+`docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
+
+**Current state**: backend only. The Android module does not exist yet. On the backend, the domain layer and scheduler are done; there are no repositories, services, controllers, or auth filter yet, so nothing in `docs/api-contract.md`'s endpoint table is implemented.
+
+## Commands
+
+All from `backend/` (there is no root-level build; the Android module will be a separate Gradle project):
+
+```bash
+./gradlew test                  # full suite — no database setup needed, see below
+./gradlew build                 # compile + test + jar
+./gradlew bootRun               # start the app on :8080 — this one DOES need local Postgres
+./gradlew test --tests '*Sm2SchedulerTest'          # single class
+./gradlew test --tests '*Sm2SchedulerTest*lapse*'   # single method pattern
+```
+
+`bootRun` requires a local PostgreSQL 17 on `127.0.0.1:5432`, database `flashcards`, owned by a non-superuser role `flashcards`, plus the `FLASHCARDS_DB_PASSWORD` environment variable. There is no fallback value for that variable on purpose — a missing one fails startup loudly rather than silently trying a default credential.
+
+`./gradlew test` needs none of that. Tests start their own Postgres (see below).
+
+## Architecture
+
+**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17, JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
+
+**Spring Boot 4 renamed the starters.** It is `spring-boot-starter-webmvc`, not `-web`, and the test starter is split per module — `spring-boot-starter-data-jpa-test`, `-webmvc-test`, `-flyway-test`, `-validation-test` — rather than one `spring-boot-starter-test`. Copying dependency snippets from Boot 3 documentation or older answers will not resolve. Tests use plain JUnit `Assertions`; AssertJ is not on the classpath.
+
+### The scheduler is pure, and stays that way
+
+`scheduler/Sm2Scheduler` has no clock, no database, no Spring annotations, and no state. The current date is a **parameter**, which is what makes the golden-vector tests deterministic rather than dependent on when they run. `scheduler/SchedulingState` is an immutable record that validates its own invariants in a compact constructor and is deliberately **not** a JPA entity.
+
+The dependency direction is `domain` → `scheduler`, never back. `Card` exposes exactly two methods that bridge them: `schedulingState()` and `applySchedule(next, reviewedAt)`. Keep it that way — nothing in `scheduler/` should ever import `jakarta.persistence` or Spring.
+
+**The deliberate divergence from DSA Tracker.** DSA Tracker's `calculateSM2` derives the next interval from the previous interval alone. Because a lapse sets that interval to `1`, the next successful review reads it as a card that just passed its first review and jumps to 6 days — so a lapse costs one day and nothing else. This port tracks `repetitions` explicitly and resets it to `0` on a lapse, so recovery runs 1 day → 6 days → ease-scaled. Golden vectors 6 and 7 in `Sm2SchedulerTest` exist specifically to pin this; if you "fix" them to match DSA Tracker you have reintroduced the bug.
+
+**One deviation from the SM-2 paper is kept on purpose**, matching DSA Tracker: a lapse does **not** reduce the ease factor. One bad day should not permanently degrade a card's schedule.
+
+### Persistence
+
+**Flyway owns the schema outright.** `spring.jpa.hibernate.ddl-auto=validate` — Hibernate may never create or alter a table. Schema changes mean a new `V2__*.sql` in `src/main/resources/db/migration`; never edit `V1__init.sql`, which has already been applied. `spring.jpa.open-in-view=false`, so lazy associations touched outside a transaction fail loudly instead of firing a silent query per row.
+
+**Data model** (`domain/`): `Topic` (1) → (many) `Card`, and `Card` (1) → (many) `ReviewLog`. Scheduling state is flattened onto `card` rather than living in a side table, because a card and its schedule are strictly 1:1.
+
+- **`review_log` is append-only and is never read to compute a schedule.** The next interval comes from the card's own columns. The log exists so stats and streaks can be reported without replaying anything. Do not derive scheduling from it.
+- `ReviewLog.of()` takes both the before and after `SchedulingState` rather than reading the card, because by the time a review is logged the card already holds the *after* values and the *before* would otherwise be silently lost.
+- Every table carries `user_id` from day one, even though auth is currently a single shared API key. That is so a real multi-user upgrade needs no data migration — **keep populating and filtering on it** in new queries.
+- `DELETE /cards/{id}` archives rather than hard-deleting (`Card.archive()`), so history survives. `idx_card_due` is a *partial* index excluding archived rows, because the study queue is the hot path and never includes them.
+- The migration's `check` constraints deliberately restate invariants `SchedulingState` already enforces in Java. That duplication is intentional: the database is the last line of defence against a write that bypasses the scheduler.
+
+**Identity ids insert eagerly.** `GenerationType.IDENTITY` forces Hibernate to execute the INSERT at `persist()` to obtain the generated key — there is nothing to defer. Constraint violations therefore surface at `persist()`, not at the following `flush()`. Tests asserting on a violation must wrap the `persist` call, not just the flush.
+
+Entity `equals`/`hashCode` treat two instances as equal only once both are persisted and share an id, with a constant `hashCode`. This keeps an entity well-behaved in a `Set` across a `save()` call, when the id goes from null to non-null.
+
+### Tests
+
+**There is no Docker on this machine**, so Testcontainers is not an option. `support/EmbeddedPostgresTest` starts a real PostgreSQL 17 in-process via `io.zonky.test:embedded-postgres` and overrides the datasource with `@DynamicPropertySource`. Extend it for anything needing a database.
+
+This matters beyond convenience: an in-memory stand-in like H2 would quietly accept things real Postgres rejects, and this schema leans on `timestamptz`, identity columns, and a partial index. The embedded binaries are Postgres 17, matching the development server, so there is no dialect gap between test and production.
+
+Consequences worth knowing:
+
+- The suite runs on a machine with no local Postgres and no `FLASHCARDS_DB_PASSWORD` set. Keep it that way — do not add a test that reaches for the developer's own database.
+- Flyway migrates a blank database on every context start, so each run also proves the migrations still apply from nothing.
+- One server is shared by the whole test JVM. Database tests must leave it as they found it; `@Transactional` on the test class rolls back.
+
+`ddl-auto=validate` means `contextLoads()` is a real test, not a formality — it fails on any drift between an entity mapping and the migration.
+
+## Conventions
+
+- Comments explain *why*, not *what*. Several non-obvious decisions above are recorded in comments at the point they matter; keep that up rather than letting the reasoning live only here.
+- Test names are full sentences via `@DisplayName`, grouped with `@Nested`. Assertion messages state the expected behaviour, not the values.
+- Secrets never enter the repo — configuration reads them from the environment. `interview-prep-flashcards-BRIEF.md`, `notes/`, `scratch/`, and `*.handoff.md` are gitignored and must stay that way.
+- Commit messages are Conventional Commits with a capitalised subject (`feat(backend): Add ...`), no attribution footer, and a body explaining the reasoning behind the change.
+
+## Workflow rules
+
+- Propose one discrete change at a time and wait for local review before moving to the next.
+- Only commit or push after I explicitly approve — never commit/push proactively.
+- Never commit or push notes, handoff, or scratch files to the repo.
