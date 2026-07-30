@@ -29,6 +29,13 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// A real PostgreSQL server, unpacked and run in-process for the duration of the
+	// test JVM. Testcontainers would be the usual choice, but there is no Docker on
+	// this machine. The point is that tests hit actual Postgres, so nothing passes in
+	// an emulation and then fails in production on a dialect difference.
+	testImplementation 'io.zonky.test:embedded-postgres:2.1.0'
+	testImplementation enforcedPlatform('io.zonky.test.postgres:embedded-postgres-binaries-bom:17.5.0')
 }
 
 tasks.named('test') {
