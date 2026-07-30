@@ -15,5 +15,13 @@ project covers coding problems; this one covers conceptual knowledge.
 
 ## Status
 
-Early — architecture agreed, implementation not started. Structure, stack details, and
-conventions will be documented in `CLAUDE.md` once the initial scaffolding exists.
+In progress, backend first.
+
+- **Done** — SM-2 scheduler with golden-vector tests, PostgreSQL schema under Flyway,
+  JPA entities. Tests run against a real Postgres started in-process, so no local
+  database setup is needed to build.
+- **Next** — repositories, the REST layer from `docs/api-contract.md`, then the Android
+  client.
+
+`docs/api-contract.md` is the spec both halves are written against. `CLAUDE.md` documents
+the stack, architecture, and conventions.
