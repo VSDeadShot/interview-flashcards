@@ -11,55 +11,28 @@ import dev.vsdeadshot.flashcards.repository.CardRepository;
 import dev.vsdeadshot.flashcards.scheduler.SchedulingState;
 import dev.vsdeadshot.flashcards.scheduler.Sm2Scheduler;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
-import java.time.Clock;
+import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Limit;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-@Import(CardServiceTest.FixedClockConfiguration.class)
+@Import(FixedClockConfiguration.class)
 class CardServiceTest extends EmbeddedPostgresTest {
 
     private static final String USER = "vedansh";
     private static final String OTHER_USER = "someone-else";
-    private static final Instant NOW = Instant.parse("2026-03-17T09:00:00Z");
-    private static final LocalDate TODAY = LocalDate.of(2026, 3, 17);
+    private static final Instant NOW = FixedClockConfiguration.NOW;
+    private static final LocalDate TODAY = FixedClockConfiguration.TODAY;
     private static final double EPSILON = 1e-9;
-
-    /**
-     * A fixed clock, so "due today" is a date this test can assert on rather than whatever day
-     * the suite happens to run. This is the reason {@link CardService} takes a {@link Clock}
-     * instead of calling {@code LocalDate.now()}.
-     *
-     * <p>Pulled in with an explicit {@code @Import} rather than left as a nested
-     * {@code @TestConfiguration}: Boot only scans for those on the class it is bootstrapping,
-     * and each {@code @Nested} class is bootstrapped separately, so the inner tests would
-     * quietly build a context holding the real system clock instead.
-     *
-     * <p>{@link #NOW} is deliberately not today. A fixed date that happens to match the day
-     * the suite runs makes these assertions pass whether the clock is honoured or not.
-     */
-    @Configuration
-    static class FixedClockConfiguration {
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(NOW, ZoneOffset.UTC);
-        }
-    }
 
     @Autowired
     private CardService service;
