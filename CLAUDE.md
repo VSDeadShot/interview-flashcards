@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: backend only. The Android module does not exist yet. On the backend, the domain layer and scheduler are done; there are no repositories, services, controllers, or auth filter yet, so nothing in `docs/api-contract.md`'s endpoint table is implemented.
+**Current state**: backend only. The Android module does not exist yet. On the backend, the domain layer, scheduler and repositories are done; there are no services, controllers, or auth filter yet, so nothing in `docs/api-contract.md`'s endpoint table is implemented.
 
 ## Commands
 
@@ -59,6 +59,16 @@ The dependency direction is `domain` → `scheduler`, never back. `Card` exposes
 **Identity ids insert eagerly.** `GenerationType.IDENTITY` forces Hibernate to execute the INSERT at `persist()` to obtain the generated key — there is nothing to defer. Constraint violations therefore surface at `persist()`, not at the following `flush()`. Tests asserting on a violation must wrap the `persist` call, not just the flush.
 
 Entity `equals`/`hashCode` treat two instances as equal only once both are persisted and share an id, with a constant `hashCode`. This keeps an entity well-behaved in a `Set` across a `save()` call, when the id goes from null to non-null.
+
+### Repositories
+
+**Every finder takes `user_id`.** `findByIdAndUserId` exists alongside the inherited `findById` precisely so a call site cannot forget the ownership filter — a card owned by someone else must read as *not found*, never as *forbidden*. Add new queries the same way rather than filtering in the service.
+
+**`CardRepository.findStudyQueue` spells out `archived = false` on purpose.** It has to line up with `idx_card_due`'s own predicate. Postgres will prove the implication for equivalent spellings — `archived <> true` uses the index too — but it cannot prove anything from a filter that is not there, and a queue query without one silently degrades to a sequential scan *while still returning the right rows*. That is why `CardRepositoryTest.Index` asserts on the `EXPLAIN` output under `enable_seqscan = off` instead of only on the rows. A sibling test pins the hand-written SQL that test explains against the JPQL actually in use, so the two cannot drift.
+
+Cards are ordered `dueDate, id`; the `id` tiebreak keeps same-day cards in a stable order so paging cannot repeat or skip one. The limit is a Spring Data `Limit`, not a `Pageable` — the contract wants a cap, not a page, so there is no count query to pay for.
+
+`ReviewLogRepository` is intentionally empty: the table is append-only, so the inherited `save` is the entire write side. Read methods arrive with `/stats`.
 
 ### Tests
 
