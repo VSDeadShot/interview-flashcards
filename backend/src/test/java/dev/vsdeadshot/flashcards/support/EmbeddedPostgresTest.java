@@ -68,4 +68,20 @@ public abstract class EmbeddedPostgresTest {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "postgres");
     }
+
+    /** The key the whole suite authenticates with. Not a secret — it opens nothing real. */
+    public static final String TEST_API_KEY = "test-api-key";
+
+    public static final String TEST_USER_ID = "test-user";
+
+    /**
+     * Supplies the settings production reads from the environment, for the same reason as the
+     * datasource above: {@code ./gradlew test} must not need {@code FLASHCARDS_API_KEY} set on
+     * the machine, and must never pick up the developer's real key if it happens to be.
+     */
+    @DynamicPropertySource
+    static void applicationProperties(DynamicPropertyRegistry registry) {
+        registry.add("flashcards.api-key", () -> TEST_API_KEY);
+        registry.add("flashcards.user-id", () -> TEST_USER_ID);
+    }
 }
