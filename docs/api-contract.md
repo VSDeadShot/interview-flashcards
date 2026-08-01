@@ -1,7 +1,8 @@
 # API Contract & Data Model
 
-Status: **proposed** — nothing implemented yet. This document is the reference the
-Spring Boot backend and the Android client are both written against.
+Status: the schema, the scheduler and the service layer are implemented; **no endpoint in
+the table below exists yet**. This document is the reference the Spring Boot backend and the
+Android client are both written against.
 
 ## Decisions this encodes
 
@@ -150,9 +151,18 @@ returns `401` with no body.
 | `POST` | `/cards` | `{topicId, front, back}` | `201` + `Card` |
 | `PUT` | `/cards/{id}` | `{front, back, topicId}` | `Card` |
 | `DELETE` | `/cards/{id}` | — | `204` (archives, does not hard-delete) |
-| `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first |
+| `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first. `limit` defaults to 20 and is clamped to 100 |
 | `POST` | `/study/{cardId}/review` | `{confidence}` | `Card` with updated schedule |
 | `GET` | `/stats` | — | `Stats` |
+
+### Reviewing
+
+A card that is **not due yet may still be reviewed**. Studying ahead is legitimate and the
+scheduler needs no special case for it — the next interval runs from the day the review
+actually happened, not from the day the card was due.
+
+An **archived card is refused as `404`**. Archiving takes a card out of circulation, and the
+alternative is a client holding a stale queue quietly rescheduling something already retired.
 
 ### Payloads
 
