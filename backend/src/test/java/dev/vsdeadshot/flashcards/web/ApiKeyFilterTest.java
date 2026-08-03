@@ -12,14 +12,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * No controller exists yet, so a request that gets past the filter lands on nothing and
- * returns {@code 404}. That is exactly what makes these assertions readable: {@code 401} means
- * the filter rejected the request, anything else means it let it through.
+ * Aimed at a route that deliberately does not exist, so a request the filter lets through
+ * lands on nothing and returns {@code 404}. That keeps every assertion here about the filter
+ * alone: {@code 401} means it rejected the request, {@code 404} means it did not, and no
+ * controller's behaviour can change either answer.
  */
 @AutoConfigureMockMvc
 class ApiKeyFilterTest extends EmbeddedPostgresTest {
 
-    private static final String PROTECTED_PATH = "/api/v1/topics";
+    private static final String PROTECTED_PATH = "/api/v1/no-such-route";
 
     @Autowired
     private MockMvc mvc;
