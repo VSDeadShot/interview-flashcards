@@ -1,8 +1,9 @@
 # API Contract & Data Model
 
-Status: the schema, the scheduler and the service layer are implemented; **no endpoint in
-the table below exists yet**. This document is the reference the Spring Boot backend and the
-Android client are both written against.
+Status: the `/topics` and `/cards` endpoints are implemented and served over HTTP. The
+`/study` endpoints have their service and scheduler behind them but no controller yet, and
+`/stats` does not exist at all. This document is the reference the Spring Boot backend and
+the Android client are both written against.
 
 ## Decisions this encodes
 
@@ -155,6 +156,25 @@ returns `401` with no body.
 | `POST` | `/study/{cardId}/review` | `{confidence}` | `Card` with updated schedule |
 | `GET` | `/stats` | — | `Stats` |
 
+### Archiving
+
+`DELETE /cards/{id}` sets `archived` and nothing else. The row stays, so the `review_log`
+entries pointing at it still resolve and the stats that read them do not develop holes.
+
+There is one archived flag, not a "hidden" one and a "deleted" one: an archived card is out
+of the default listing, out of the study queue, and refused by review. `?includeArchived=true`
+is the only way to see one, which is why `archived` is on the payload — a client that asked
+for them needs to tell them apart.
+
+Deleting an already-archived card answers `204` again rather than `404`, so a retried request
+does not look like a failure.
+
+### Request limits
+
+`name` is capped at 120 characters to match the column. `front` and `back` are `text` in the
+database and capped at 10,000 characters at the edge — not a schema limit but a guard, since
+a JSON body has no default size limit and a flashcard has no business being longer.
+
 ### Reviewing
 
 A card that is **not due yet may still be reviewed**. Studying ahead is legitimate and the
@@ -178,7 +198,16 @@ alternative is a client holding a stale queue quietly rescheduling something alr
   "repetitions": 2,
   "lapses": 0,
   "dueDate": "2026-08-03",
-  "lastReviewedAt": "2026-07-28T19:40:00Z"
+  "lastReviewedAt": "2026-07-28T19:40:00Z",  // null until the first review
+  "archived": false
+}
+
+// Topic
+{
+  "id": 3,
+  "name": "Operating Systems",
+  "slug": "operating-systems",
+  "createdAt": "2026-07-01T08:00:00Z"
 }
 
 // Stats
