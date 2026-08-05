@@ -1,9 +1,9 @@
 # API Contract & Data Model
 
-Status: the `/topics` and `/cards` endpoints are implemented and served over HTTP. The
-`/study` endpoints have their service and scheduler behind them but no controller yet, and
-`/stats` does not exist at all. This document is the reference the Spring Boot backend and
-the Android client are both written against.
+Status: every endpoint below is implemented and served over HTTP except `GET /stats`, which
+does not exist yet — it is waiting on the open questions at the end of this document. This
+document is the reference the Spring Boot backend and the Android client are both written
+against.
 
 ## Decisions this encodes
 
@@ -175,7 +175,17 @@ does not look like a failure.
 database and capped at 10,000 characters at the edge — not a schema limit but a guard, since
 a JSON body has no default size limit and a flashcard has no business being longer.
 
+### The queue
+
+`limit` is treated asymmetrically on purpose. Above the maximum it is **clamped**, because asking
+for more than a study session can hold is not a mistake worth refusing; at zero or below it is a
+**`400`**, because there is no request that means "give me no cards" other than a bug.
+
 ### Reviewing
+
+A review answers `200` with the whole card, not `204`. The new interval, ease factor and due date
+are the point of asking, and it is the same `Card` payload the queue returns, so a client that
+caches by id can replace its copy without a second request.
 
 A card that is **not due yet may still be reviewed**. Studying ahead is legitimate and the
 scheduler needs no special case for it — the next interval runs from the day the review
