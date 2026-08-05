@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: backend only. The Android module does not exist yet. Every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter except `GET /stats`, which is waiting on that document's open questions — the streak definition and the timezone.
+**Current state**: backend only. The Android module does not exist yet. Every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter.
 
 ## Commands
 
@@ -68,7 +68,9 @@ Entity `equals`/`hashCode` treat two instances as equal only once both are persi
 
 Cards are ordered `dueDate, id`; the `id` tiebreak keeps same-day cards in a stable order so paging cannot repeat or skip one. The limit is a Spring Data `Limit`, not a `Pageable` — the contract wants a cap, not a page, so there is no count query to pay for.
 
-`ReviewLogRepository` is intentionally empty: the table is append-only, so the inherited `save` is the entire write side. Read methods arrive with `/stats`.
+`ReviewLogRepository` has no write method of its own: the table is append-only, so the inherited `save` is the entire write side. Its reads exist for `/stats` only — **reading the log to compute a schedule is the one thing forbidden**, and asking it what a card's due date *used to be*, as the streak does, is not that.
+
+**The streak's due check is the one query that reconstructs the past.** `due_date` says where a card stands now, so a day that was studied late reads as empty; `CardRepository.existsCardDueOn` rebuilds the due date as it stood at the start of a day from the last review before it. It is native because JPQL cannot express `order by ... limit 1` in a subquery. Its two exclusions — archived cards, and cards created during the day itself — are decisions, documented in `docs/api-contract.md`, not optimisations.
 
 ### The web layer
 

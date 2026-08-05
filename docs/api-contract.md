@@ -1,9 +1,7 @@
 # API Contract & Data Model
 
-Status: every endpoint below is implemented and served over HTTP except `GET /stats`, which
-does not exist yet — it is waiting on the open questions at the end of this document. This
-document is the reference the Spring Boot backend and the Android client are both written
-against.
+Status: every endpoint below is implemented and served over HTTP. This document is the
+reference the Spring Boot backend and the Android client are both written against.
 
 ## Decisions this encodes
 
@@ -194,6 +192,56 @@ actually happened, not from the day the card was due.
 An **archived card is refused as `404`**. Archiving takes a card out of circulation, and the
 alternative is a client holding a stale queue quietly rescheduling something already retired.
 
+### Stats
+
+`totalCards`, `dueToday` and every `byTopic` figure count **cards in circulation**: archived cards
+are excluded, since they are out of the app. Every topic appears in `byTopic`, including one
+holding no cards — a topic that vanished from the screen when its last card was archived would
+look deleted, and nothing deletes topics.
+
+**`currentStreakDays` is forgiving.** It counts consecutive days with at least one review,
+walking backwards from today, with two rules that are decisions rather than arithmetic:
+
+- **A day on which nothing was due is skipped**, not counted and not treated as a miss. The
+  scheduler decides when cards come back; a day it left empty cannot fairly be held against the
+  user. The streak runs across such a day.
+- **Today never breaks the streak**, because the day is not over. Someone opening the app at
+  breakfast sees the streak they went to bed with.
+
+"Was anything due on that day" cannot be read off `due_date`, which only says where a card stands
+now — a card due on Tuesday and reviewed on Wednesday has had its due date moved on. It is
+reconstructed from `review_log`: the last review before the day sets the due date to that
+review's date plus `interval_after`, and a card not yet reviewed is still on the due date it was
+created with. This is a read for statistics, which is what the log is for; no schedule is ever
+computed from it.
+
+Two exclusions from that check, both deliberate. **Archived cards never count** — there is no
+record of *when* a card was archived, so a retired card must not be able to break a streak in
+hindsight. **Cards created during the day itself do not count** — a card has to have existed when
+the day began to have been missed, so writing new cards late at night cannot turn that night into
+a failure.
+
+The walk stops at the day of the first review. Only studied days are ever counted, so nothing
+earlier can add to the streak, and without a floor a forgiving rule would walk backwards forever.
+
+The cost is two queries per day examined — was it studied, and was anything due — and the second
+is only asked for days that were not studied. That is accepted for correctness: the cheap version
+counts only days with reviews, and tells a user who studied everything they had that they broke
+their streak.
+
+### Timezone
+
+**"Today" is the server's local day, everywhere** — the study queue, `due_date` comparisons,
+`reviewedToday`, and the day boundaries the streak walks. This is a **documented simplification
+for the single-user, local-first case**, not an oversight: one user in one timezone with the
+server on their own machine sees exactly what they expect, and an explicit user timezone would be
+a column, a setting screen and a conversion at every boundary for no benefit today.
+
+It is the wrong answer the moment there is a client in another timezone, which would see days
+roll over at the server's midnight rather than its own — cards appearing due at 05:30, a streak
+breaking in the afternoon. Revisit at that point, not before: the change is a user timezone stored
+alongside the account, applied where `LocalDate.now(clock)` is called today.
+
 ### Payloads
 
 ```jsonc
@@ -242,8 +290,13 @@ alternative is a client holding a stale queue quietly rescheduling something alr
 
 ## Open questions
 
-- **Stats scope.** `currentStreakDays` needs a definition — consecutive days with
-  at least one review, presumably, but a day with zero *due* cards arguably
-  shouldn't break a streak. Worth settling before `/stats` is built.
-- **Timezone.** `due_date` is a `LocalDate`, so "today" is server-local. Fine for a
-  single user in one timezone; would need an explicit user timezone otherwise.
+Both of the questions that stood here — the streak definition and the timezone — were settled
+when `/stats` was built, and are recorded under [Stats](#stats) and [Timezone](#timezone) above.
+What is left is smaller:
+
+- **`card.created_at` does not come from the injected `Clock`.** It is stamped by
+  `@PrePersist` with `Instant.now()`, so it is the one timestamp in the application that does
+  not answer to the clock everything else calls "today". Production never notices, since both
+  are system time there; a test with a fixed clock sees them months apart. The streak's
+  reconstruction of past due dates reads that column, so this is worth aligning before any
+  further stats are derived from it.
