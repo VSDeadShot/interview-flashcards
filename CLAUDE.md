@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: backend only. The Android module does not exist yet. On the backend, the domain layer, scheduler and repositories are done; there are no services, controllers, or auth filter yet, so nothing in `docs/api-contract.md`'s endpoint table is implemented.
+**Current state**: backend only. The Android module does not exist yet. Every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter except `GET /stats`, which is waiting on that document's open questions — the streak definition and the timezone.
 
 ## Commands
 
@@ -70,6 +70,17 @@ Cards are ordered `dueDate, id`; the `id` tiebreak keeps same-day cards in a sta
 
 `ReviewLogRepository` is intentionally empty: the table is append-only, so the inherited `save` is the entire write side. Read methods arrive with `/stats`.
 
+### The web layer
+
+**Controllers are thin on purpose**: read the caller, delegate, map the result to a DTO. No error handling, no ownership checks, no rules of their own. A controller that grows a `try`/`catch` or an `if (!owns(...))` is doing someone else's job.
+
+- **`ApiKeyFilter` publishes the authenticated owner** as the `userId` request attribute, and controllers read it with `@RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE)` rather than from configuration. That is the seam a real subject claim will arrive through when auth stops being one shared key.
+- **Ownership stays in the service and the repository.** Something owned by another user reads as *not found*, never *forbidden* — so nothing about its existence is discoverable.
+- **`ApiExceptionHandler` owns every error response**: `NotFoundException` → `404`, `DuplicateTopicException` → `409`, `IllegalArgumentException` → `400`. Nothing maps `Exception`, deliberately — a catch-all copying `getMessage()` into `detail` would publish constraint names, SQL and file paths to whoever provoked it. `spring.mvc.problemdetails.enabled=true` puts Spring's own failures (malformed JSON, a missing parameter, a rejected `@Valid`) into the same `application/problem+json`, so a client needs one parser instead of two.
+- **Entities are never serialised.** `web/dto` holds the wire format so it is not a consequence of the JPA mapping and `user_id` never leaves the server. `CardResponse` is the *only* card shape — listing, create, update, the queue and a review all return it, because the client caches cards by id and two shapes for one id could not replace each other.
+- **DTOs are built after the transaction has closed.** With `open-in-view=false`, `CardResponse.from` reads `card.getTopic().getId()` on a detached proxy; that works only because the id is already on the card's row. Reading any *other* field of the topic there throws `LazyInitializationException`.
+- **Validate at the edge only where the alternative is a `500`.** `CardRequest`'s `@Size` earns its place because an over-long value otherwise reaches Hibernate's entity validation and becomes a server error. `ReviewRequest` deliberately has no `@Min`/`@Max` on `confidence`: `StudyService` already answers `400` using the scheduler's own constants and names the offending value, and a Bean Validation annotation would intercept one layer earlier and replace that message with `"Invalid request content."`
+
 ### Tests
 
 **There is no Docker on this machine**, so Testcontainers is not an option. `support/EmbeddedPostgresTest` starts a real PostgreSQL 17 in-process via `io.zonky.test:embedded-postgres` and overrides the datasource with `@DynamicPropertySource`. Extend it for anything needing a database.
@@ -83,6 +94,12 @@ Consequences worth knowing:
 - One server is shared by the whole test JVM. Database tests must leave it as they found it; `@Transactional` on the test class rolls back.
 
 `ddl-auto=validate` means `contextLoads()` is a real test, not a formality — it fails on any drift between an entity mapping and the migration.
+
+**Boot 4 moved the test autoconfigure packages too**, the same way it renamed the starters: `@AutoConfigureMockMvc` is `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`. An import copied from Boot 3 will not resolve.
+
+**Controller tests are deliberately not `@Transactional`** and clean up by hand instead. A test transaction holds one Hibernate session open for the whole method, so the response would be serialised inside the session that loaded it — which production never does. That would hide exactly the lazy-association failures the DTO mapping can produce. Keep new controller tests that way; service and repository tests roll back as usual.
+
+**The fixed clock is opt-in.** `support/FixedClockConfiguration` is a `@TestConfiguration`, so it replaces the `Clock` only in contexts that `@Import` it by name — a plain `@Configuration` under the scanned package would silently apply to every test in the suite, which is easy to depend on without noticing. It must stay top-level rather than nested in a test class: Boot scans for a nested `@TestConfiguration` only on the class it is bootstrapping, and every `@Nested` class bootstraps separately, so inner tests would quietly get the real system clock. `FixedClockConfiguration.TODAY` is never the actual day, so a date assertion cannot pass by coincidence.
 
 ## Conventions
 
