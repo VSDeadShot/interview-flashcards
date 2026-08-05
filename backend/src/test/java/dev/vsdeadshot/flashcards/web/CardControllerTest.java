@@ -1,6 +1,5 @@
 package dev.vsdeadshot.flashcards.web;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,7 +14,6 @@ import dev.vsdeadshot.flashcards.repository.CardRepository;
 import dev.vsdeadshot.flashcards.repository.ReviewLogRepository;
 import dev.vsdeadshot.flashcards.repository.TopicRepository;
 import dev.vsdeadshot.flashcards.service.CardService;
-import dev.vsdeadshot.flashcards.service.NotFoundException;
 import dev.vsdeadshot.flashcards.service.StudyService;
 import dev.vsdeadshot.flashcards.service.TopicService;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
@@ -253,6 +251,11 @@ class CardControllerTest extends EmbeddedPostgresTest {
         }
     }
 
+    /**
+     * The other half of what archiving means — an archived card cannot be reviewed either, which
+     * is why it is one flag and not two ideas — is asserted over HTTP in
+     * {@code StudyControllerTest}, where that route lives.
+     */
     @Nested
     @DisplayName("DELETE /cards/{id}")
     class Delete {
@@ -280,23 +283,6 @@ class CardControllerTest extends EmbeddedPostgresTest {
             mvc.perform(authorised(get(PATH)).param("includeArchived", "true"))
                     .andExpect(jsonPath("$.length()").value(1))
                     .andExpect(jsonPath("$[0].archived").value(true));
-        }
-
-        /**
-         * The other half of what archiving means, and the reason it is one flag rather than two
-         * ideas: a card taken out of circulation cannot be reviewed either. Asserted against
-         * {@link StudyService} because {@code POST /study/{id}/review} does not exist yet — the
-         * HTTP form of this belongs with that controller.
-         */
-        @Test
-        @DisplayName("also stops the card being reviewed")
-        void anArchivedCardCannotBeReviewed() throws Exception {
-            Card card = cards.create(TEST_USER_ID, operatingSystems.getId(), "front", "back");
-            mvc.perform(authorised(delete(PATH + "/" + card.getId())));
-
-            assertThrows(NotFoundException.class,
-                    () -> study.review(TEST_USER_ID, card.getId(), 5),
-                    "an archived card reads as absent to the study path, which is a 404");
         }
 
         @Test
