@@ -1,6 +1,7 @@
 package dev.vsdeadshot.flashcards.repository;
 
 import dev.vsdeadshot.flashcards.domain.Card;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -57,4 +58,56 @@ public interface CardRepository extends JpaRepository<Card, Long> {
             @Param("userId") String userId,
             @Param("topicId") Long topicId,
             @Param("includeArchived") boolean includeArchived);
+
+    /** Cards in circulation. Archived ones are not counted — they are out of the app. */
+    long countByUserIdAndArchivedFalse(String userId);
+
+    long countByUserIdAndArchivedFalseAndDueDateLessThanEqual(String userId, LocalDate today);
+
+    /**
+     * Whether anything was due on one past day — the question that decides whether a day with
+     * no reviews breaks the streak or is skipped over.
+     *
+     * <p>It cannot be answered from {@code due_date} alone. That column holds where a card
+     * stands <em>now</em>; a card due last Tuesday and reviewed on Wednesday has had its due
+     * date moved on, and Tuesday would read as empty. So the due date as it stood at the start
+     * of the day is reconstructed: the last review strictly before that day sets it to that
+     * review's date plus {@code interval_after}, and a card with no review before that day is
+     * still sitting on the due date it was created with. Adding whole days to the review
+     * instant lands inside the day the card became due, which is why this compares instants
+     * rather than casting to dates and inheriting the database session's timezone.
+     *
+     * <p>Native because JPQL cannot express {@code order by ... limit 1} in a subquery, and
+     * "the last review before this day" is exactly that.
+     *
+     * <p>This reads {@code review_log}, which is allowed: the log exists for statistics. The
+     * rule it must not break is computing a <em>schedule</em> from it, and nothing here does —
+     * the answer is a boolean about the past, and no card is written.
+     *
+     * <p>Two deliberate exclusions. Archived cards never count, because there is no record of
+     * when a card was archived and a retired card should not be able to break a streak
+     * retroactively. Cards created during the day itself do not count either — the card had to
+     * exist at the start of the day to have been missed, so writing new cards late in the
+     * evening cannot turn that evening into a failure.
+     */
+    @Query(value = """
+            select exists (
+                select 1
+                  from card c
+                 where c.user_id = :userId
+                   and c.archived = false
+                   and c.created_at < :dayStart
+                   and coalesce(
+                         (select r.reviewed_at + r.interval_after * interval '1 day'
+                            from review_log r
+                           where r.card_id = c.id
+                             and r.reviewed_at < :dayStart
+                           order by r.reviewed_at desc
+                           limit 1),
+                         c.created_at) < :dayEnd)
+            """, nativeQuery = true)
+    boolean existsCardDueOn(
+            @Param("userId") String userId,
+            @Param("dayStart") Instant dayStart,
+            @Param("dayEnd") Instant dayEnd);
 }
