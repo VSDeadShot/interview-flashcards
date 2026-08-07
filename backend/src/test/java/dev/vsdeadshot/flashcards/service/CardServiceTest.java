@@ -69,6 +69,21 @@ class CardServiceTest extends EmbeddedPostgresTest {
             assertFalse(card.isArchived());
         }
 
+        /**
+         * The creation instant has to come from the same clock the due date does. The streak
+         * reconstructs past due dates from {@code created_at} and compares them against days
+         * taken from that clock, so a card stamped by the system clock instead would be
+         * invisible to the check on every day the two disagree about.
+         */
+        @Test
+        @DisplayName("stamps it with the injected clock, not the system one")
+        void createdAtFollowsTheClock() {
+            Card card = service.create(USER, mine.getId(), "front", "back");
+
+            assertEquals(FixedClockConfiguration.NOW, card.getCreatedAt(),
+                    "the card was written at the moment the application calls now");
+        }
+
         @Test
         @DisplayName("trims the question and answer")
         void trimsBothSides() {

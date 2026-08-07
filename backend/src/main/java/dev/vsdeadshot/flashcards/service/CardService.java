@@ -47,7 +47,7 @@ public class CardService {
         Topic topic = requireOwnedTopic(userId, topicId);
         // Due today rather than tomorrow, so a card added during a session can be studied in it.
         return cards.save(new Card(userId, topic, require(front, "front"), require(back, "back"),
-                LocalDate.now(clock)));
+                LocalDate.now(clock), clock.instant()));
     }
 
     /**

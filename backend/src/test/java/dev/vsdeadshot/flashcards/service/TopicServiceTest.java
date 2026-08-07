@@ -7,14 +7,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.vsdeadshot.flashcards.domain.Topic;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
+import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
+@Import(FixedClockConfiguration.class)
 class TopicServiceTest extends EmbeddedPostgresTest {
 
     private static final String USER = "vedansh";
@@ -35,7 +38,14 @@ class TopicServiceTest extends EmbeddedPostgresTest {
             assertNotNull(created.getId(), "the identity id is available straight after save");
             assertEquals("Operating Systems", created.getName(), "the display name is not slugified");
             assertEquals("operating-systems", created.getSlug());
-            assertNotNull(created.getCreatedAt(), "@PrePersist populates this without a re-read");
+            assertNotNull(created.getCreatedAt(), "available straight after save, without a re-read");
+        }
+
+        @Test
+        @DisplayName("stamps the creation instant with the injected clock, not the system one")
+        void createdAtFollowsTheClock() {
+            assertEquals(FixedClockConfiguration.NOW, service.create(USER, "DBMS").getCreatedAt(),
+                    "createdAt is on the wire, so it must agree with the rest of the request");
         }
 
         @Test

@@ -53,12 +53,20 @@ public class Topic {
         // Required by JPA.
     }
 
-    public Topic(String userId, String name, String slug) {
+    /**
+     * @param createdAt passed in rather than stamped on persist, so that every timestamp the
+     *                  application writes comes from the one injected {@code Clock} — and so
+     *                  that {@code createdAt}, which the API returns, is the same "now" the
+     *                  rest of a request works from
+     */
+    public Topic(String userId, String name, String slug, Instant createdAt) {
         this.userId = userId;
         this.name = name;
         this.slug = slug;
+        this.createdAt = createdAt;
     }
 
+    /** A backstop for a topic persisted without one; the constructor is the normal path. */
     @PrePersist
     void onCreate() {
         if (createdAt == null) {

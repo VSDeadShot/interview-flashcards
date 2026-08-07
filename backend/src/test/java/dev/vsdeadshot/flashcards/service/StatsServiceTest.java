@@ -29,12 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
  * is about days rather than counts.
  *
  * <p>Building a history means writing rows the API cannot produce on demand — a card created
- * last week, a review that happened three days ago. The clock is fixed, so
- * {@link #backdate(Card, LocalDate)} sets {@code created_at} and {@code due_date} directly.
- * That is also the one place this suite depends on {@code created_at} <em>not</em> coming from
- * the injected {@link java.time.Clock}: {@code @PrePersist} stamps it with
- * {@code Instant.now()}, so in a test it is months away from the day the clock claims it is.
- * Production never notices, since there both are system time.
+ * last week, a review that happened three days ago. Everything the service writes is stamped
+ * with the fixed clock, which puts it all on one day, so {@link #backdate(Card, LocalDate)}
+ * moves a card into the past by setting {@code created_at} and {@code due_date} directly.
+ * Both are deliberately unreachable through the domain, which is why it is done in SQL.
  */
 @Transactional
 @Import(FixedClockConfiguration.class)

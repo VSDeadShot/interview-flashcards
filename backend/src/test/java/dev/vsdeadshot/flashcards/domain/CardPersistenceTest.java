@@ -33,6 +33,10 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
 
     private static final String USER = "vedansh";
     private static final LocalDate TODAY = LocalDate.of(2026, 7, 30);
+
+    /** The morning of {@link #TODAY}. Nothing here reads it back; it just has to be a time. */
+    private static final Instant CREATED_AT = Instant.parse("2026-07-30T08:00:00Z");
+
     private static final double EPSILON = 1e-9;
 
     @Autowired
@@ -41,7 +45,7 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
     private final Sm2Scheduler scheduler = new Sm2Scheduler();
 
     private Topic persistTopic(String slug) {
-        Topic topic = new Topic(USER, "Operating Systems", slug);
+        Topic topic = new Topic(USER, "Operating Systems", slug, CREATED_AT);
         em.persist(topic);
         return topic;
     }
@@ -61,7 +65,8 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
     @DisplayName("a new card round-trips with the schedule of an unreviewed card")
     void newCardRoundTrips() {
         Topic topic = persistTopic("operating-systems");
-        Card card = new Card(USER, topic, "What is a deadlock?", "Four Coffman conditions.", TODAY);
+        Card card = new Card(
+                USER, topic, "What is a deadlock?", "Four Coffman conditions.", TODAY, CREATED_AT);
         em.persist(card);
 
         em.flush();
@@ -75,14 +80,16 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
         assertEquals(0, loaded.getRepetitions());
         assertEquals(TODAY, loaded.getDueDate(), "a new card is due today, not tomorrow");
         assertNull(loaded.getLastReviewedAt(), "never reviewed");
-        assertNotNull(loaded.getCreatedAt(), "@PrePersist populates this without a re-read");
+        assertEquals(CREATED_AT, loaded.getCreatedAt(),
+                "the creation instant is the caller's, not one the entity stamped for itself");
     }
 
     @Test
     @DisplayName("a review applied through the scheduler is persisted onto the card")
     void appliedScheduleIsPersisted() {
         Topic topic = persistTopic("dbms");
-        Card card = new Card(USER, topic, "What is 2PL?", "Two-phase locking.", TODAY);
+        Card card = new Card(
+                USER, topic, "What is 2PL?", "Two-phase locking.", TODAY, CREATED_AT);
         em.persist(card);
 
         Instant reviewedAt = Instant.parse("2026-07-30T09:15:00Z");
@@ -105,7 +112,8 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
     @DisplayName("a review log records both sides of the transition")
     void reviewLogRoundTrips() {
         Topic topic = persistTopic("networks");
-        Card card = new Card(USER, topic, "What is TCP slow start?", "Congestion control.", TODAY);
+        Card card = new Card(
+                USER, topic, "What is TCP slow start?", "Congestion control.", TODAY, CREATED_AT);
         card.applySchedule(new SchedulingState(2.5d, 10, 4, 0, TODAY), Instant.now());
         em.persist(card);
 
@@ -130,7 +138,7 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
     @DisplayName("a topic slug is unique per user, not globally")
     void slugIsUniquePerUser() {
         persistTopic("operating-systems");
-        em.persist(new Topic("someone-else", "Operating Systems", "operating-systems"));
+        em.persist(new Topic("someone-else", "Operating Systems", "operating-systems", CREATED_AT));
 
         em.flush(); // Same slug, different user: allowed.
 
@@ -138,7 +146,7 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
         // to run the insert immediately to obtain the generated key, so the violation
         // surfaces at persist() rather than being deferred to the flush.
         Exception thrown = assertThrows(Exception.class, () -> {
-            em.persist(new Topic(USER, "Duplicate", "operating-systems"));
+            em.persist(new Topic(USER, "Duplicate", "operating-systems", CREATED_AT));
             em.flush();
         });
         assertTrue(rootMessage(thrown).contains("uq_topic_user_slug"),
@@ -149,7 +157,8 @@ class CardPersistenceTest extends EmbeddedPostgresTest {
     @DisplayName("the database rejects an ease factor below the floor, not just Java")
     void databaseEnforcesEaseFactorFloor() {
         Topic topic = persistTopic("oop");
-        Card card = new Card(USER, topic, "What is LSP?", "Liskov substitution.", TODAY);
+        Card card = new Card(
+                USER, topic, "What is LSP?", "Liskov substitution.", TODAY, CREATED_AT);
         em.persist(card);
         em.flush();
 

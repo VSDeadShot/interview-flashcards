@@ -2,6 +2,7 @@ package dev.vsdeadshot.flashcards.service;
 
 import dev.vsdeadshot.flashcards.domain.Topic;
 import dev.vsdeadshot.flashcards.repository.TopicRepository;
+import java.time.Clock;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -22,9 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class TopicService {
 
     private final TopicRepository topics;
+    private final Clock clock;
 
-    public TopicService(TopicRepository topics) {
+    public TopicService(TopicRepository topics, Clock clock) {
         this.topics = topics;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +64,7 @@ public class TopicService {
         }
 
         try {
-            return topics.save(new Topic(userId, trimmed, slug));
+            return topics.save(new Topic(userId, trimmed, slug, clock.instant()));
         } catch (DataIntegrityViolationException e) {
             // Two concurrent creates can both pass the check above. uq_topic_user_slug is
             // what actually prevents the duplicate, so the loser of that race is translated

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.vsdeadshot.flashcards.domain.Topic;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,9 @@ class TopicRepositoryTest extends EmbeddedPostgresTest {
     private static final String USER = "vedansh";
     private static final String OTHER_USER = "someone-else";
 
+    /** Nothing here reads the column back; these lookups are by user and slug. */
+    private static final Instant CREATED_AT = Instant.parse("2026-08-01T08:00:00Z");
+
     @Autowired
     private EntityManager em;
 
@@ -30,10 +34,10 @@ class TopicRepositoryTest extends EmbeddedPostgresTest {
     @BeforeEach
     void seed() {
         // Same slug under both users: the constraint is per user, and so are the lookups.
-        mine = new Topic(USER, "Operating Systems", "operating-systems");
+        mine = new Topic(USER, "Operating Systems", "operating-systems", CREATED_AT);
         em.persist(mine);
-        em.persist(new Topic(USER, "Databases", "dbms"));
-        em.persist(new Topic(OTHER_USER, "Operating Systems", "operating-systems"));
+        em.persist(new Topic(USER, "Databases", "dbms", CREATED_AT));
+        em.persist(new Topic(OTHER_USER, "Operating Systems", "operating-systems", CREATED_AT));
         em.flush();
     }
 

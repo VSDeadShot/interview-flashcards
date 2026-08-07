@@ -11,7 +11,9 @@ import jakarta.persistence.EntityManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import org.hibernate.Session;
@@ -73,15 +75,23 @@ class CardRepositoryTest extends EmbeddedPostgresTest {
     }
 
     private Topic topic(String userId, String slug) {
-        Topic topic = new Topic(userId, slug, slug);
+        Topic topic = new Topic(userId, slug, slug, startOf(TODAY));
         em.persist(topic);
         return topic;
+    }
+
+    /** These fixtures are placed by date, and the zone only has to be consistent with itself. */
+    private static Instant startOf(LocalDate day) {
+        return day.atStartOfDay(ZoneOffset.UTC).toInstant();
     }
 
     private Card card(String userId, Topic topic, LocalDate dueDate, boolean isArchived) {
         // The constructor makes a card due on the date it is created, so passing the wanted
         // due date as "today" is enough — no scheduler round trip needed to place a fixture.
-        Card card = new Card(userId, topic, "front " + dueDate, "back", dueDate);
+        // The creation instant follows it for the same reason: an unreviewed card is due on
+        // the day it was written, and a fixture that disagreed would be describing no card
+        // this application can produce.
+        Card card = new Card(userId, topic, "front " + dueDate, "back", dueDate, startOf(dueDate));
         if (isArchived) {
             card.archive();
         }

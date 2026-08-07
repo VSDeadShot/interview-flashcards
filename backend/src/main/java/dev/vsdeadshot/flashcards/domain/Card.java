@@ -94,12 +94,23 @@ public class Card {
     /**
      * Creates an unreviewed card due on {@code today}, so a card added now shows up in
      * today's queue rather than tomorrow's.
+     *
+     * @param today     the day the card becomes due
+     * @param createdAt when it was written. Passed in rather than stamped here, so it comes
+     *                  from the same injected {@code Clock} {@code today} does. The streak
+     *                  reconstructs past due dates from this column and compares them against
+     *                  days derived from that clock, so a {@code created_at} taken from
+     *                  somewhere else is not merely inconsistent — it silently changes which
+     *                  days count as having had anything due.
      */
-    public Card(String userId, Topic topic, String front, String back, LocalDate today) {
+    public Card(String userId, Topic topic, String front, String back,
+            LocalDate today, Instant createdAt) {
         this.userId = userId;
         this.topic = topic;
         this.front = front;
         this.back = back;
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
         SchedulingState initial = SchedulingState.newCard(today);
         this.easeFactor = initial.easeFactor();
         this.intervalDays = initial.intervalDays();
@@ -108,15 +119,28 @@ public class Card {
         this.dueDate = initial.dueDate();
     }
 
+    /**
+     * A backstop for a card persisted without those timestamps, not the normal path — the
+     * constructor sets both. Only fills what is missing, so a caller's clock always wins.
+     */
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
         if (createdAt == null) {
             createdAt = now;
         }
-        updatedAt = now;
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
     }
 
+    /**
+     * {@code updated_at} is the one timestamp still taken from the system clock. A callback
+     * cannot reach the application's {@code Clock}, and the alternative — setting it by hand
+     * in every mutator — trades a clock nothing reads for a column that goes stale the first
+     * time someone adds a setter and forgets. Nothing in the application queries this column;
+     * it exists so a row can be dated when looking at the database directly.
+     */
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
