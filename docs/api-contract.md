@@ -151,7 +151,7 @@ returns `401` with no body.
 | `PUT` | `/cards/{id}` | `{front, back, topicId}` | `Card` |
 | `DELETE` | `/cards/{id}` | — | `204` (archives, does not hard-delete) |
 | `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first. `limit` defaults to 20 and is clamped to 100 |
-| `POST` | `/study/{cardId}/review` | `{confidence}` | `Card` with updated schedule |
+| `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?}` | `Card` with updated schedule |
 | `GET` | `/stats` | — | `Stats` |
 
 ### Archiving
@@ -191,6 +191,31 @@ actually happened, not from the day the card was due.
 
 An **archived card is refused as `404`**. Archiving takes a card out of circulation, and the
 alternative is a client holding a stale queue quietly rescheduling something already retired.
+
+#### Reviews that happened earlier
+
+`reviewedAt` is optional. Absent — what an online client sends — the server uses its own clock,
+which is the original behaviour. Present, it is when the review actually happened, and it is used
+for **both** the review log and the day the next interval is measured from.
+
+This exists for the offline client. A review done on a train and synced that evening must count
+for the day it happened: stamped on arrival, the day it was done reads as a day with cards due and
+nothing studied, and the streak ends there — punishing exactly the user the forgiving rule was
+written for.
+
+Three bounds, all `400`:
+
+- **Not in the future**, with five minutes of tolerance. A phone's clock is not the server's to
+  the second, and refusing a review for being twelve seconds ahead is a bug report, not a fix.
+- **Not older than 30 days.** Long enough for a fortnight with no signal; short enough that a
+  device whose clock is wrong by months is refused rather than believed.
+- **Not before the card's own last review.** A single client replaying its queue in order cannot
+  produce this. Anything that does is confused, and rewinding a schedule computed from newer
+  information would corrupt it silently — the log would also claim a transition that never
+  happened in that order.
+
+Because the interval runs from the day of the review, a late-reported one can leave a card
+**already due** — truthfully, since it is.
 
 ### Stats
 
