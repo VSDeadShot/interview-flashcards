@@ -1,0 +1,5 @@
+// Plugin versions are declared once here and applied in the modules that need them, so two
+// modules cannot end up on different versions of the Android plugin.
+plugins {
+    id 'com.android.application' version '9.3.1' apply false
+}

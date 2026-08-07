@@ -1,0 +1,26 @@
+plugins {
+    id 'java-library'
+}
+
+// A plain java-library, not an Android module. Sm2Scheduler imports java.time and java.util
+// and nothing else, so it has no reason to know Android exists — and keeping it out of the
+// Android plugin means these tests run on the JVM in a second, with no SDK involved.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    // Compiled against Java 17 rather than 21 because :app consumes this, and the Android
+    // toolchain is the constraint. Records survive: D8 desugars them.
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}

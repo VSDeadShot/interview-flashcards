@@ -1,0 +1,25 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    // Modules declare no repositories of their own, so there is one place to look when a
+    // dependency cannot be resolved and no way for a module to quietly add a source.
+    repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'flashcards-android'
+
+// A separate build from backend/ on purpose. Including the backend here would make its test
+// task depend on an Android SDK being installed, and `./gradlew test` needing no setup at all
+// is a property that project has protected deliberately.
+include ':app'
+include ':scheduler'

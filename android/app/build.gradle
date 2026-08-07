@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.vsdeadshot.flashcards'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'dev.vsdeadshot.flashcards'
+        // java.time is available natively from 26, so the scheduler needs no desugaring and
+        // the dates it computes are the same ones the backend computes.
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.1'
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                // Room writes the schema as JSON here. It is committed, so a change to an
+                // entity shows up as a diff in a schema file rather than only as a migration
+                // someone remembered to write.
+                arguments += ['room.schemaLocation': "$projectDir/schemas".toString()]
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric needs the merged resources and manifest to build an Application.
+            includeAndroidResources = true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    // The scheduler the backend runs, verbatim. The client predicts a review's outcome
+    // offline with it; the server's answer replaces the prediction at the next sync.
+    implementation project(':scheduler')
+
+    implementation 'androidx.room:room-runtime:2.8.4'
+    annotationProcessor 'androidx.room:room-compiler:2.8.4'
+
+    testImplementation 'junit:junit:4.13.2'
+    // Runs the Android framework on the JVM, so the database tests need no emulator — the
+    // same reason the backend runs Postgres in-process rather than asking for Docker.
+    testImplementation 'org.robolectric:robolectric:4.15.1'
+}
