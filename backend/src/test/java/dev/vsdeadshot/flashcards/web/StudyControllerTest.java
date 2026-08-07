@@ -18,6 +18,7 @@ import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -300,6 +301,67 @@ class StudyControllerTest extends EmbeddedPostgresTest {
             cards.archive(TEST_USER_ID, card.getId());
 
             mvc.perform(review(card.getId(), confidence(5))).andExpect(status().isNotFound());
+        }
+    }
+
+    /**
+     * The retry an outbox performs when it never learned whether the first attempt landed.
+     * Applying SM-2 twice would push the card an extra interval with nothing reporting it, so
+     * these are the assertions that make offline replay safe.
+     */
+    @Nested
+    @DisplayName("POST /study/{cardId}/review with a client key")
+    class IdempotentReview {
+
+        @Test
+        @DisplayName("answers 200 both times and schedules the card once")
+        void appliesOnceOverHttp() throws Exception {
+            Card card = newCard("front");
+            String body = """
+                    {"confidence": 5, "clientReviewId": "%s"}""".formatted(UUID.randomUUID());
+
+            mvc.perform(review(card.getId(), body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.repetitions").value(1));
+
+            mvc.perform(review(card.getId(), body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.repetitions").value(1))
+                    .andExpect(jsonPath("$.intervalDays").value(1))
+                    .andExpect(jsonPath("$.dueDate")
+                            .value(FixedClockConfiguration.TODAY.plusDays(1).toString()));
+        }
+
+        @Test
+        @DisplayName("answers 409 and says not to retry when a key is reused for something else")
+        void refusesAReusedKey() throws Exception {
+            Card card = newCard("front");
+            UUID key = UUID.randomUUID();
+            mvc.perform(review(card.getId(), """
+                    {"confidence": 5, "clientReviewId": "%s"}""".formatted(key)));
+
+            mvc.perform(review(card.getId(), """
+                            {"confidence": 2, "clientReviewId": "%s"}""".formatted(key)))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    // The field, not the sentence: an outbox has to tell this apart from the
+                    // other 409 on this endpoint, which it is meant to retry.
+                    .andExpect(jsonPath("$.retryable").value(false));
+        }
+
+        @Test
+        @DisplayName("applies both when two reviews carry different keys")
+        void distinctKeysBothApply() throws Exception {
+            Card card = newCard("front");
+
+            mvc.perform(review(card.getId(), """
+                    {"confidence": 5, "clientReviewId": "%s"}""".formatted(UUID.randomUUID())));
+            mvc.perform(review(card.getId(), """
+                            {"confidence": 5, "clientReviewId": "%s"}""".formatted(UUID.randomUUID())))
+                    .andExpect(status().isOk())
+                    // Studying the same card twice in a day is allowed; only a repeated key
+                    // means the same review.
+                    .andExpect(jsonPath("$.repetitions").value(2));
         }
     }
 

@@ -2,6 +2,7 @@ package dev.vsdeadshot.flashcards.web.dto;
 
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * The body of {@code POST /study/{cardId}/review}: how well the card was recalled, and — for a
@@ -28,6 +29,15 @@ import java.time.Instant;
  *                   the same reason {@code confidence} is — the service can say what was wrong
  *                   with the value, and Bean Validation would replace that with
  *                   {@code "Invalid request content."}
+ * @param clientReviewId the caller's own id for this review, or absent. A client that queues
+ *                   reviews offline cannot tell a request that failed from one whose response
+ *                   was lost, so it retries either way — and a retried review would otherwise
+ *                   apply SM-2 twice and jump the card an extra interval, silently and with no
+ *                   error anywhere. Sending the same id again gets the original outcome back.
+ *                   A UUID rather than anything derived from the payload: two reviews of one
+ *                   card at the same confidence are a thing that happens, and a derived key
+ *                   would quietly swallow the second.
  */
-public record ReviewRequest(@NotNull Integer confidence, Instant reviewedAt) {
+public record ReviewRequest(
+        @NotNull Integer confidence, Instant reviewedAt, UUID clientReviewId) {
 }

@@ -7,6 +7,9 @@ import dev.vsdeadshot.flashcards.repository.TopicRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,12 +45,51 @@ public class CardService {
                 .orElseThrow(() -> new NotFoundException("card", id));
     }
 
+    /** Creates a card with nothing to deduplicate against — the online path. */
     @Transactional
     public Card create(String userId, long topicId, String front, String back) {
+        return create(userId, topicId, front, back, null).card();
+    }
+
+    /**
+     * Creates a card, or returns the one an earlier attempt at the same request already made.
+     *
+     * <p>A client that queues work offline cannot tell a request that failed from one whose
+     * response was lost, so it retries either way. Without a key that turns one card into two,
+     * and nothing in the response says so — the caller sees a successful create both times.
+     *
+     * @param clientCardId the caller's id for this request, or null to skip deduplication
+     * @throws ConcurrentRequestException if an identical request is in flight and won the race
+     */
+    @Transactional
+    public CardCreation create(
+            String userId, long topicId, String front, String back, UUID clientCardId) {
+        if (clientCardId != null) {
+            Optional<Card> already = cards.findByUserIdAndClientCardId(userId, clientCardId);
+            if (already.isPresent()) {
+                // Deliberately not compared against the payload the way a repeated review is.
+                // A card is editable, so the row may legitimately no longer resemble the
+                // request that created it, and a mismatch would say nothing about the client.
+                return new CardCreation(already.get(), true);
+            }
+        }
+
         Topic topic = requireOwnedTopic(userId, topicId);
-        // Due today rather than tomorrow, so a card added during a session can be studied in it.
-        return cards.save(new Card(userId, topic, require(front, "front"), require(back, "back"),
-                LocalDate.now(clock), clock.instant()));
+        try {
+            // Due today rather than tomorrow, so a card added during a session can be studied in it.
+            return new CardCreation(cards.saveAndFlush(new Card(
+                    userId, topic, require(front, "front"), require(back, "back"),
+                    LocalDate.now(clock), clock.instant(), clientCardId)), false);
+        } catch (DataIntegrityViolationException e) {
+            // Only reachable when a request with this key committed between the lookup above
+            // and this insert. Named rather than assumed, so a future constraint on `card`
+            // cannot be reported as a duplicated request.
+            if (!Constraints.isViolationOf("uq_card_client_id", e)) {
+                throw e;
+            }
+            throw new ConcurrentRequestException(
+                    "a request with clientCardId " + clientCardId + " is already in progress");
+        }
     }
 
     /**

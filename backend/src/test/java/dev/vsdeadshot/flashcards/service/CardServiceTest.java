@@ -15,6 +15,7 @@ import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -205,6 +206,75 @@ class CardServiceTest extends EmbeddedPostgresTest {
         private boolean inQueue(Card card) {
             List<Card> queue = cards.findStudyQueue(USER, TODAY, Limit.unlimited());
             return queue.contains(card);
+        }
+    }
+
+    /**
+     * A queued create is retried when its response goes missing, and the client cannot tell
+     * that from a create that never happened. Without a key the user ends up with two cards
+     * where they wrote one, and both requests looked like a success.
+     */
+    @Nested
+    @DisplayName("creating a card twice under one key")
+    class RepeatedCreate {
+
+        private final UUID key = UUID.randomUUID();
+
+        @Test
+        @DisplayName("makes one card and hands it back both times")
+        void makesOneCard() {
+            CardCreation first = service.create(USER, mine.getId(), "front", "back", key);
+            CardCreation second = service.create(USER, mine.getId(), "front", "back", key);
+
+            assertEquals(first.card().getId(), second.card().getId());
+            assertFalse(first.replayed(), "the first request is what created it");
+            assertTrue(second.replayed(), "and the second is what the status code has to admit");
+            assertEquals(1, cards.findForListing(USER, null, true).size());
+        }
+
+        @Test
+        @DisplayName("keeps the key that made it, so the answer survives a restart")
+        void storesTheKey() {
+            assertEquals(key, service.create(USER, mine.getId(), "front", "back", key).card()
+                    .getClientCardId(),
+                    "the key lives on the row, so there is no window in which a late retry doubles");
+        }
+
+        /**
+         * Unlike a repeated review, the payload is not compared. A card is editable, so by the
+         * time a retry lands the row may legitimately no longer resemble the request that made
+         * it — a mismatch would say nothing about the client.
+         */
+        @Test
+        @DisplayName("returns the card even after it has been edited")
+        void returnsAnEditedCard() {
+            Card created = service.create(USER, mine.getId(), "front", "back", key).card();
+            service.update(USER, created.getId(), "corrected", "also corrected", mine.getId());
+
+            CardCreation replayed = service.create(USER, mine.getId(), "front", "back", key);
+
+            assertEquals(created.getId(), replayed.card().getId());
+            assertEquals("corrected", replayed.card().getFront());
+        }
+
+        @Test
+        @DisplayName("does not deduplicate two genuinely separate cards")
+        void leavesDistinctKeysAlone() {
+            service.create(USER, mine.getId(), "front", "back", UUID.randomUUID());
+            service.create(USER, mine.getId(), "front", "back", UUID.randomUUID());
+
+            assertEquals(2, cards.findForListing(USER, null, true).size(),
+                    "two identical cards are a thing a user may legitimately want");
+        }
+
+        @Test
+        @DisplayName("does not deduplicate at all without a key")
+        void leavesKeylessCreatesAlone() {
+            service.create(USER, mine.getId(), "front", "back");
+            service.create(USER, mine.getId(), "front", "back");
+
+            assertEquals(2, cards.findForListing(USER, null, true).size(),
+                    "the online path is unchanged");
         }
     }
 }

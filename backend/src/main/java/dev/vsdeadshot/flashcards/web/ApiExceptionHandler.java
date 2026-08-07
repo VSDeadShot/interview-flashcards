@@ -1,6 +1,8 @@
 package dev.vsdeadshot.flashcards.web;
 
+import dev.vsdeadshot.flashcards.service.ConcurrentRequestException;
 import dev.vsdeadshot.flashcards.service.DuplicateTopicException;
+import dev.vsdeadshot.flashcards.service.IdempotencyKeyReuseException;
 import dev.vsdeadshot.flashcards.service.NotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -44,6 +46,28 @@ public class ApiExceptionHandler {
         // from the name. Handing it back as a field means a client can react to the conflict
         // without parsing the sentence.
         problem.setProperty("slug", e.getSlug());
+        return problem;
+    }
+
+    /**
+     * Both of these are conflicts, and a client has to tell them apart to know what to do: one
+     * is worth retrying and the other never will be. Rather than make it read the title, the
+     * answer is a {@code retryable} field — the same reason {@link DuplicateTopicException}
+     * hands back the slug instead of expecting the sentence to be parsed.
+     */
+    @ExceptionHandler(ConcurrentRequestException.class)
+    public ProblemDetail handleConcurrentRequest(ConcurrentRequestException e) {
+        ProblemDetail problem = problem(HttpStatus.CONFLICT, "Concurrent request", e.getMessage());
+        problem.setProperty("retryable", true);
+        return problem;
+    }
+
+    @ExceptionHandler(IdempotencyKeyReuseException.class)
+    public ProblemDetail handleKeyReuse(IdempotencyKeyReuseException e) {
+        ProblemDetail problem = problem(HttpStatus.CONFLICT, "Idempotency key reused", e.getMessage());
+        // A client that retries this gets it again for as long as the key exists, which is
+        // forever. Saying so is what stops an outbox retrying it forever.
+        problem.setProperty("retryable", false);
         return problem;
     }
 

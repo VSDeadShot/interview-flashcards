@@ -15,7 +15,9 @@ import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -319,6 +321,124 @@ class StudyServiceTest extends EmbeddedPostgresTest {
             assertEquals(0, card.getRepetitions());
             assertEquals(TODAY, card.getDueDate());
             assertTrue(reviewLogs.findAll().isEmpty(), "and no log behind it");
+        }
+    }
+
+    /**
+     * A client that queues reviews cannot tell a request that failed from one whose response
+     * was lost, so it retries either way. Applying SM-2 twice would jump the card an extra
+     * interval — a corruption with no error anywhere to report it.
+     */
+    @Nested
+    @DisplayName("a review sent twice under one key")
+    class RepeatedReview {
+
+        private final UUID key = UUID.randomUUID();
+
+        @Test
+        @DisplayName("is applied once and answered twice")
+        void appliesOnceAndAnswersTwice() {
+            Card card = newCard("front");
+
+            Card first = service.review(USER, card.getId(), 5, null, key);
+            Card second = service.review(USER, card.getId(), 5, null, key);
+
+            assertEquals(1, reviewLogs.findAll().size(), "one review happened, so one log");
+            assertEquals(1, second.getRepetitions(), "and SM-2 ran once, not twice");
+            assertEquals(first.getId(), second.getId());
+            assertEquals(TODAY.plusDays(1), second.getDueDate(),
+                    "a second application would have pushed this to six days out");
+        }
+
+        /**
+         * The interaction that decides where the key check goes. By the time the retry lands,
+         * a later review has moved the card past the retry's own timestamp — so the ordering
+         * rule would refuse it as out of order, when the truth is that it was already applied.
+         */
+        @Test
+        @DisplayName("is still answered after a later review has moved the card on")
+        void isAnsweredEvenWhenTheCardHasMovedOn() {
+            Card card = newCard("front");
+            Instant yesterday = NOW.minus(Duration.ofDays(1));
+            service.review(USER, card.getId(), 5, yesterday, key);
+            service.review(USER, card.getId(), 4, NOW, UUID.randomUUID());
+
+            Card replayed = service.review(USER, card.getId(), 5, yesterday, key);
+
+            assertEquals(card.getId(), replayed.getId());
+            assertEquals(2, reviewLogs.findAll().size(), "still only the two real reviews");
+        }
+
+        @Test
+        @DisplayName("survives the nanoseconds a timestamptz column cannot store")
+        void survivesTimestampTruncation() {
+            Card card = newCard("front");
+            // An Instant keeps nanoseconds; the column keeps microseconds. Comparing what was
+            // sent against what was stored, untruncated, would call this a different review.
+            Instant withNanos = NOW.minus(Duration.ofHours(1)).plusNanos(123_456_789);
+
+            service.review(USER, card.getId(), 5, withNanos, key);
+            Card replayed = service.review(USER, card.getId(), 5, withNanos, key);
+
+            assertEquals(1, reviewLogs.findAll().size());
+            assertEquals(withNanos.truncatedTo(ChronoUnit.MICROS), replayed.getLastReviewedAt());
+        }
+
+        @Test
+        @DisplayName("is refused when the key comes back with a different confidence")
+        void refusesADifferentConfidence() {
+            Card card = newCard("front");
+            service.review(USER, card.getId(), 5, NOW, key);
+
+            assertThrows(IdempotencyKeyReuseException.class,
+                    () -> service.review(USER, card.getId(), 2, NOW, key),
+                    "one key names one review; answering with the other's outcome would record "
+                            + "the wrong review under the right key forever");
+        }
+
+        @Test
+        @DisplayName("is refused when the key comes back on a different card")
+        void refusesADifferentCard() {
+            Card card = newCard("front");
+            Card other = newCard("other");
+            service.review(USER, card.getId(), 5, NOW, key);
+
+            assertThrows(IdempotencyKeyReuseException.class,
+                    () -> service.review(USER, other.getId(), 5, NOW, key));
+        }
+
+        @Test
+        @DisplayName("is refused when the key comes back with a different time")
+        void refusesADifferentTime() {
+            Card card = newCard("front");
+            service.review(USER, card.getId(), 5, NOW, key);
+
+            assertThrows(IdempotencyKeyReuseException.class,
+                    () -> service.review(USER, card.getId(), 5, NOW.minus(Duration.ofHours(2)), key));
+        }
+
+        @Test
+        @DisplayName("does not deduplicate two genuinely separate reviews")
+        void leavesDistinctKeysAlone() {
+            Card card = newCard("front");
+
+            service.review(USER, card.getId(), 5, null, UUID.randomUUID());
+            service.review(USER, card.getId(), 5, null, UUID.randomUUID());
+
+            assertEquals(2, reviewLogs.findAll().size(),
+                    "reviewing the same card twice in a day is allowed, and studying ahead is "
+                            + "exactly how it happens");
+        }
+
+        @Test
+        @DisplayName("does not deduplicate at all without a key")
+        void leavesKeylessReviewsAlone() {
+            Card card = newCard("front");
+
+            service.review(USER, card.getId(), 5);
+            service.review(USER, card.getId(), 5);
+
+            assertEquals(2, reviewLogs.findAll().size(), "the online path is unchanged");
         }
     }
 }

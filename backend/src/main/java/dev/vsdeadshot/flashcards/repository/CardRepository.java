@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -58,6 +59,14 @@ public interface CardRepository extends JpaRepository<Card, Long> {
             @Param("userId") String userId,
             @Param("topicId") Long topicId,
             @Param("includeArchived") boolean includeArchived);
+
+    /**
+     * The card a previous attempt at this request already created, if there was one.
+     *
+     * <p>Scoped by user like every other finder here, which also means one client's key can
+     * never collide with another's.
+     */
+    Optional<Card> findByUserIdAndClientCardId(String userId, UUID clientCardId);
 
     /** Cards in circulation. Archived ones are not counted — they are out of the app. */
     long countByUserIdAndArchivedFalse(String userId);

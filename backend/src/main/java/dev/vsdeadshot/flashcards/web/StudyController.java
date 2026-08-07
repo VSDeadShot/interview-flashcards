@@ -62,7 +62,7 @@ public class StudyController {
             @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
             @PathVariable long cardId,
             @Valid @RequestBody ReviewRequest request) {
-        return CardResponse.from(
-                study.review(userId, cardId, request.confidence(), request.reviewedAt()));
+        return CardResponse.from(study.review(
+                userId, cardId, request.confidence(), request.reviewedAt(), request.clientReviewId()));
     }
 }

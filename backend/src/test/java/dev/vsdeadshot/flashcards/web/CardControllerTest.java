@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,6 +19,7 @@ import dev.vsdeadshot.flashcards.service.StudyService;
 import dev.vsdeadshot.flashcards.service.TopicService;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -304,6 +307,61 @@ class CardControllerTest extends EmbeddedPostgresTest {
 
             mvc.perform(authorised(delete(PATH + "/" + theirCard.getId())))
                     .andExpect(status().isNotFound());
+        }
+    }
+
+    /**
+     * The offline client's retry. What the status code says matters here: the body is the same
+     * card both times, so a client needs no branch, but 201 would be claiming a creation that
+     * did not happen on the second request.
+     */
+    @Nested
+    @DisplayName("POST /cards with a client key")
+    class IdempotentCreate {
+
+        @Test
+        @DisplayName("answers 201 then 200 for the same card")
+        void answers201Then200() throws Exception {
+            String body = """
+                    {"topicId": %d, "front": "front", "back": "back", "clientCardId": "%s"}"""
+                    .formatted(operatingSystems.getId(), UUID.randomUUID());
+
+            String created = mvc.perform(json(post(PATH), body))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+
+            mvc.perform(json(post(PATH), body))
+                    .andExpect(status().isOk())
+                    .andExpect(content().json(created, JsonCompareMode.STRICT));
+
+            mvc.perform(authorised(get(PATH)))
+                    .andExpect(jsonPath("$.length()").value(1));
+        }
+
+        @Test
+        @DisplayName("still creates a second card under a second key")
+        void distinctKeysCreateDistinctCards() throws Exception {
+            mvc.perform(json(post(PATH), cardBodyWithKey(UUID.randomUUID())))
+                    .andExpect(status().isCreated());
+            mvc.perform(json(post(PATH), cardBodyWithKey(UUID.randomUUID())))
+                    .andExpect(status().isCreated());
+
+            mvc.perform(authorised(get(PATH))).andExpect(jsonPath("$.length()").value(2));
+        }
+
+        @Test
+        @DisplayName("rejects a key that is not a UUID as 400")
+        void rejectsAMalformedKey() throws Exception {
+            mvc.perform(json(post(PATH), """
+                            {"topicId": %d, "front": "f", "back": "b", "clientCardId": "not-a-uuid"}"""
+                            .formatted(operatingSystems.getId())))
+                    .andExpect(status().isBadRequest());
+        }
+
+        private String cardBodyWithKey(UUID key) {
+            return """
+                    {"topicId": %d, "front": "front", "back": "back", "clientCardId": "%s"}"""
+                    .formatted(operatingSystems.getId(), key);
         }
     }
 

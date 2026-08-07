@@ -3,6 +3,7 @@ package dev.vsdeadshot.flashcards.repository;
 import dev.vsdeadshot.flashcards.domain.ReviewLog;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -44,12 +45,18 @@ public interface ReviewLogRepository extends JpaRepository<ReviewLog, Long> {
      * nothing. That makes this a correct floor as well as a tight one, and without a floor the
      * forgiving rule would walk backwards forever through days on which nothing was due.
      *
-     * <p>Deliberately the first review rather than the oldest card. {@code card.created_at} is
-     * stamped by {@code @PrePersist} from {@code Instant.now()} and not from the injected
-     * clock, so it is the one timestamp in the application that does not answer to the clock
-     * the rest of "today" comes from. Empty when nothing has ever been reviewed, and the
-     * streak is then zero.
+     * <p>Deliberately the first review rather than the oldest card: a review is the only thing
+     * that can add to a streak, so nothing before the first one needs walking. Empty when
+     * nothing has ever been reviewed, and the streak is then zero.
      */
     @Query("select min(r.reviewedAt) from ReviewLog r where r.userId = :userId")
     Optional<Instant> findEarliestReviewedAt(@Param("userId") String userId);
+
+    /**
+     * The review a previous attempt at this request already recorded, if there was one.
+     *
+     * <p>This is the whole idempotency mechanism on the read side: the log is append-only, so
+     * the row that answers this question outlives any retry that could ask it.
+     */
+    Optional<ReviewLog> findByUserIdAndClientReviewId(String userId, UUID clientReviewId);
 }

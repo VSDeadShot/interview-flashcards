@@ -1,11 +1,13 @@
 package dev.vsdeadshot.flashcards.web;
 
+import dev.vsdeadshot.flashcards.service.CardCreation;
 import dev.vsdeadshot.flashcards.service.CardService;
 import dev.vsdeadshot.flashcards.web.dto.CardRequest;
 import dev.vsdeadshot.flashcards.web.dto.CardResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,13 +53,21 @@ public class CardController {
         return cards.list(userId, topicId, includeArchived).stream().map(CardResponse::from).toList();
     }
 
+    /**
+     * {@code 201} for a card this request created, {@code 200} for one an earlier attempt at
+     * the same request already made. The body is identical either way, so a client needs no
+     * branch — but {@code 201} asserts a creation, and on a replay no creation happened. The
+     * status code is the one part of the response that cannot say "already done".
+     */
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public CardResponse create(
+    public ResponseEntity<CardResponse> create(
             @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
             @Valid @RequestBody CardRequest request) {
-        return CardResponse.from(
-                cards.create(userId, request.topicId(), request.front(), request.back()));
+        CardCreation created = cards.create(
+                userId, request.topicId(), request.front(), request.back(), request.clientCardId());
+        return ResponseEntity
+                .status(created.replayed() ? HttpStatus.OK : HttpStatus.CREATED)
+                .body(CardResponse.from(created.card()));
     }
 
     /** Edits the text and the topic only — a typo fix must not reset the card's schedule. */

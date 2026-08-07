@@ -10,7 +10,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -105,6 +109,35 @@ public class StudyService {
      */
     @Transactional
     public Card review(String userId, long cardId, int confidence, Instant reviewedAt) {
+        return review(userId, cardId, confidence, reviewedAt, null);
+    }
+
+    /**
+     * As above, for a client whose request may already have been applied.
+     *
+     * <p>The lookup happens <strong>before</strong> the card is loaded and before the ordering
+     * check, and that order is the whole point rather than tidiness. A retry sent after a later
+     * review has landed carries a {@code reviewedAt} the card has now moved past, so the
+     * ordering rule would refuse it as out-of-order — when the truthful answer is that it was
+     * already applied. Checking the key first turns that {@code 400} into the {@code 200} it
+     * should always have been.
+     *
+     * <p>The ordering rule does not catch retries on its own either: a retry carries the same
+     * instant as the original, which is not <em>before</em> the card's last review, so it would
+     * sail through and apply SM-2 a second time. The two mechanisms overlap nowhere.
+     *
+     * <p>What comes back is the card as it stands now, not as it stood after the original
+     * review. If something landed in between, this is the newer schedule — which is both the
+     * more useful answer for a client about to re-sync, and impossible to reconstruct anyway:
+     * the log keeps {@code interval_after} and {@code ease_factor_after}, but no due date.
+     *
+     * @param clientReviewId the caller's id for this review, or null to skip deduplication
+     * @throws IdempotencyKeyReuseException if the key was already used for a different review
+     * @throws ConcurrentRequestException   if an identical request is in flight and won the race
+     */
+    @Transactional
+    public Card review(
+            String userId, long cardId, int confidence, Instant reviewedAt, UUID clientReviewId) {
         // Checked before the lookup so a bad confidence reads as a validation failure rather
         // than depending on whether the card happens to exist. The scheduler enforces the same
         // range; these are its constants, not a second copy of the rule.
@@ -115,7 +148,19 @@ public class StudyService {
         }
 
         Instant now = clock.instant();
-        Instant happenedAt = reviewedAt == null ? now : validBackdate(reviewedAt, now);
+        // Truncated to what the column actually stores. Instant carries nanoseconds and
+        // timestamptz keeps microseconds, so an untruncated value would not equal the one read
+        // back — and a legitimate retry would look like a key reused with a different time.
+        Instant happenedAt = reviewedAt == null
+                ? now
+                : validBackdate(reviewedAt.truncatedTo(ChronoUnit.MICROS), now);
+
+        if (clientReviewId != null) {
+            Optional<ReviewLog> already = reviewLogs.findByUserIdAndClientReviewId(userId, clientReviewId);
+            if (already.isPresent()) {
+                return replayOf(already.get(), userId, cardId, confidence, happenedAt);
+            }
+        }
 
         Card card = cards.findByIdAndUserId(cardId, userId)
                 .filter(found -> !found.isArchived())
@@ -137,8 +182,41 @@ public class StudyService {
                 before, confidence, LocalDate.ofInstant(happenedAt, clock.getZone()));
 
         card.applySchedule(after, happenedAt);
-        reviewLogs.save(ReviewLog.of(card, confidence, before, after, happenedAt));
+        try {
+            reviewLogs.saveAndFlush(
+                    ReviewLog.of(card, confidence, before, after, happenedAt, clientReviewId));
+        } catch (DataIntegrityViolationException e) {
+            // Only reachable when a request with this key committed between the lookup above
+            // and this insert. Named rather than assumed, so a future constraint on review_log
+            // cannot be reported as a duplicated request.
+            if (!Constraints.isViolationOf("uq_review_log_client_id", e)) {
+                throw e;
+            }
+            throw new ConcurrentRequestException(
+                    "a review with clientReviewId " + clientReviewId + " is already in progress");
+        }
         return card;
+    }
+
+    /**
+     * The answer to a request that was already applied. The payload is compared first, because
+     * a key that names one review arriving with the details of another is a client that has
+     * lost track of its own queue, and answering it with somebody else's outcome would record
+     * the wrong review under the right key permanently.
+     */
+    private Card replayOf(
+            ReviewLog original, String userId, long cardId, int confidence, Instant happenedAt) {
+        long originalCardId = original.getCard().getId();
+        if (originalCardId != cardId
+                || original.getConfidence() != confidence
+                || !original.getReviewedAt().equals(happenedAt)) {
+            throw new IdempotencyKeyReuseException("clientReviewId "
+                    + original.getClientReviewId() + " was already used for a different review");
+        }
+        // Re-read rather than navigating original.getCard(): that is a lazy proxy, and the
+        // caller serialises this outside the transaction.
+        return cards.findByIdAndUserId(originalCardId, userId)
+                .orElseThrow(() -> new NotFoundException("card", originalCardId));
     }
 
     private static Instant validBackdate(Instant reviewedAt, Instant now) {
