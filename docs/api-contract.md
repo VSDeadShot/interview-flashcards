@@ -290,13 +290,13 @@ alongside the account, applied where `LocalDate.now(clock)` is called today.
 
 ## Open questions
 
-Both of the questions that stood here — the streak definition and the timezone — were settled
-when `/stats` was built, and are recorded under [Stats](#stats) and [Timezone](#timezone) above.
-What is left is smaller:
+None outstanding. The three that stood here have all been settled and written into the body:
+the streak definition under [Stats](#stats), the timezone under [Timezone](#timezone), and
+`created_at`, which now comes from the injected `Clock` like every other instant the
+application writes — `Topic` and `Card` take it as a constructor argument rather than stamping
+themselves on persist.
 
-- **`card.created_at` does not come from the injected `Clock`.** It is stamped by
-  `@PrePersist` with `Instant.now()`, so it is the one timestamp in the application that does
-  not answer to the clock everything else calls "today". Production never notices, since both
-  are system time there; a test with a fixed clock sees them months apart. The streak's
-  reconstruction of past due dates reads that column, so this is worth aligning before any
-  further stats are derived from it.
+`updated_at` is the one exception, and stays one deliberately. A JPA callback cannot reach the
+application's `Clock`, and setting it by hand in every mutator trades a clock nothing reads for
+a column that goes stale the first time someone adds a setter and forgets. Nothing queries it;
+it exists to date a row when looking at the database directly.
