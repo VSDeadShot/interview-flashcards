@@ -60,6 +60,7 @@ timezone note under open questions.
 | `due_date` | `date` | not null, defaults to creation date (new cards are due immediately) |
 | `last_reviewed_at` | `timestamptz` | nullable — null means never reviewed |
 | `archived` | `boolean` | not null, default `false` |
+| `client_card_id` | `uuid` | nullable, `unique (user_id, client_card_id)` — see [Retrying safely](#retrying-safely) |
 | `created_at` / `updated_at` | `timestamptz` | not null, default `now()` |
 
 ```sql
@@ -80,8 +81,10 @@ in it. That query is the hot path.
 | `interval_before` / `interval_after` | `integer` | not null |
 | `ease_factor_before` / `ease_factor_after` | `double precision` | not null |
 | `repetitions_after` | `integer` | not null |
+| `client_review_id` | `uuid` | nullable, `unique (user_id, client_review_id)` — see [Retrying safely](#retrying-safely) |
 
-Append-only. No updates, no deletes.
+Append-only. No updates, no deletes. Which is also what makes a client key stored here a
+permanent answer to a retry: the row it lives on is never removed or rewritten.
 
 ### Connection
 
@@ -147,11 +150,11 @@ returns `401` with no body.
 | `GET` | `/topics` | — | `[Topic]` |
 | `POST` | `/topics` | `{name}` | `201` + `Topic` |
 | `GET` | `/cards?topicId=&includeArchived=` | — | `[Card]` |
-| `POST` | `/cards` | `{topicId, front, back}` | `201` + `Card` |
+| `POST` | `/cards` | `{topicId, front, back, clientCardId?}` | `201` + `Card`, or `200` on a replay |
 | `PUT` | `/cards/{id}` | `{front, back, topicId}` | `Card` |
 | `DELETE` | `/cards/{id}` | — | `204` (archives, does not hard-delete) |
 | `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first. `limit` defaults to 20 and is clamped to 100 |
-| `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?}` | `Card` with updated schedule |
+| `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?, clientReviewId?}` | `Card` with updated schedule |
 | `GET` | `/stats` | — | `Stats` |
 
 ### Archiving
@@ -166,6 +169,51 @@ for them needs to tell them apart.
 
 Deleting an already-archived card answers `204` again rather than `404`, so a retried request
 does not look like a failure.
+
+### Retrying safely
+
+A client that queues work offline cannot tell a request that failed from one whose response was
+lost, so it retries either way. Two endpoints are not naturally safe to repeat, and both take an
+optional client-generated **UUID** to make them so:
+
+| Endpoint | Key | Without it, a retry |
+|---|---|---|
+| `POST /cards` | `clientCardId` | leaves two cards where the user wrote one |
+| `POST /study/{cardId}/review` | `clientReviewId` | applies SM-2 twice and jumps the card an extra interval |
+
+The review case is the dangerous one: nothing reports it, and the card simply comes back sooner
+or later than it should forever after.
+
+`PUT` and `DELETE` take no key and need none — `PUT` replaces, and `DELETE` archives and answers
+`204` however many times it arrives. Clients should not send one.
+
+**The key is minted per queued operation, not per attempt.** Every retry of one operation carries
+the same key. It is a UUID rather than anything derived from the payload, because two reviews of
+one card at the same confidence — or two identical cards — are things a user may legitimately
+create, and a derived key would silently swallow the second.
+
+**Keys never expire.** They are stored on the row they identify: `review_log` is append-only and
+cards are archived rather than deleted, so a key outlives any retry that could quote it. There is
+no cleanup job and no window in which a late retry quietly doubles.
+
+A repeated `POST /cards` answers **`200`** rather than `201`. The body is the same card either
+way, so a client needs no branch, but `201` would assert a creation that did not happen. A
+repeated review answers `200` with the card **as it stands now** — if a later review landed in
+between, that is the newer schedule, which is both the more useful answer and the only one
+available, since the log records intervals but not due dates.
+
+Two conflicts can come back, and a client must tell them apart, so the problem body carries a
+`retryable` field rather than expecting the title to be parsed:
+
+- `409` **Concurrent request**, `retryable: true` — an identical request was in flight and won the
+  race. Nothing was written twice; ask again and the ordinary lookup answers.
+- `409` **Idempotency key reused**, `retryable: false` — the key came back naming a different
+  review (another card, confidence, or time). That is a client that has lost track of its own
+  queue, and retrying it will fail identically forever.
+
+Because a key names one operation, a review's payload is compared on replay. A card's is not: a
+card is editable, so by the time a retry lands the row may legitimately no longer resemble the
+request that made it.
 
 ### Request limits
 
@@ -311,7 +359,9 @@ alongside the account, applied where `LocalDate.now(clock)` is called today.
 { "status": 400, "title": "Validation failed", "detail": "confidence must be between 1 and 5" }
 ```
 
-`400` validation · `401` bad/missing key · `404` unknown id · `409` duplicate topic slug
+`400` validation · `401` bad/missing key · `404` unknown id · `409` duplicate topic slug,
+or a retry conflict — see [Retrying safely](#retrying-safely) for the `retryable` field that
+separates the two
 
 ## Open questions
 
