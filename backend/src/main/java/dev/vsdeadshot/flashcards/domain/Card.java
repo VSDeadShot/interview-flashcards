@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * A single question/answer pair together with its spaced-repetition schedule.
@@ -81,6 +82,14 @@ public class Card {
     @Column(nullable = false)
     private boolean archived;
 
+    /**
+     * The client's own id for the request that created this card, when it had one. Null for
+     * anything created online. Unique per user, so a replayed upload finds the card it already
+     * made instead of making a second one.
+     */
+    @Column(name = "client_card_id", updatable = false)
+    private UUID clientCardId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -105,6 +114,17 @@ public class Card {
      */
     public Card(String userId, Topic topic, String front, String back,
             LocalDate today, Instant createdAt) {
+        this(userId, topic, front, back, today, createdAt, null);
+    }
+
+    /**
+     * As above, for a card whose creating request carried a client id to deduplicate on.
+     *
+     * @param clientCardId the caller's id for the request, or null when there was none
+     */
+    public Card(String userId, Topic topic, String front, String back,
+            LocalDate today, Instant createdAt, UUID clientCardId) {
+        this.clientCardId = clientCardId;
         this.userId = userId;
         this.topic = topic;
         this.front = front;
@@ -234,6 +254,10 @@ public class Card {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public UUID getClientCardId() {
+        return clientCardId;
     }
 
     public Instant getUpdatedAt() {

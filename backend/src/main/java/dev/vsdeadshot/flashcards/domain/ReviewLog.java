@@ -12,6 +12,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * One row per review, written after the card's schedule has been updated.
@@ -58,8 +59,22 @@ public class ReviewLog {
     @Column(name = "repetitions_after", nullable = false)
     private int repetitionsAfter;
 
+    /**
+     * The client's own id for this review, when it had one. Null for anything recorded
+     * online, which is most of it. Unique per user, so a replayed upload finds the review it
+     * already sent instead of applying SM-2 to the card a second time.
+     */
+    @Column(name = "client_review_id")
+    private UUID clientReviewId;
+
     protected ReviewLog() {
         // Required by JPA.
+    }
+
+    /** Records a review the server timed itself, with no client id to deduplicate against. */
+    public static ReviewLog of(
+            Card card, int confidence, SchedulingState before, SchedulingState after, Instant reviewedAt) {
+        return of(card, confidence, before, after, reviewedAt, null);
     }
 
     /**
@@ -68,9 +83,15 @@ public class ReviewLog {
      * <p>Taking both states rather than reading the card avoids an ordering trap: by the
      * time this is called the card has usually already been updated, so its columns hold
      * the "after" values and the "before" would be lost.
+     *
+     * @param clientReviewId the caller's id for this review, or null. Stored on the log rather
+     *                       than in a table of remembered responses, so it lasts exactly as
+     *                       long as the review does — this table is append-only, so that is
+     *                       forever, and no retry is ever old enough to slip past it.
      */
     public static ReviewLog of(
-            Card card, int confidence, SchedulingState before, SchedulingState after, Instant reviewedAt) {
+            Card card, int confidence, SchedulingState before, SchedulingState after,
+            Instant reviewedAt, UUID clientReviewId) {
         Objects.requireNonNull(card, "card must not be null");
         Objects.requireNonNull(before, "before must not be null");
         Objects.requireNonNull(after, "after must not be null");
@@ -85,7 +106,12 @@ public class ReviewLog {
         log.easeFactorBefore = before.easeFactor();
         log.easeFactorAfter = after.easeFactor();
         log.repetitionsAfter = after.repetitions();
+        log.clientReviewId = clientReviewId;
         return log;
+    }
+
+    public UUID getClientReviewId() {
+        return clientReviewId;
     }
 
     public Long getId() {
