@@ -16,6 +16,8 @@ import dev.vsdeadshot.flashcards.service.StudyService;
 import dev.vsdeadshot.flashcards.service.TopicService;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
+import java.time.Duration;
+import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -213,6 +215,40 @@ class StudyControllerTest extends EmbeddedPostgresTest {
                     .andExpect(jsonPath("$.dueDate")
                             .value(FixedClockConfiguration.TODAY.plusDays(1).toString()))
                     .andExpect(jsonPath("$.lastReviewedAt").isString());
+        }
+
+        /**
+         * The offline client's request: studied yesterday, sent today. The schedule has to run
+         * from the day it happened, or a queued review silently becomes a review of the day it
+         * was uploaded.
+         */
+        @Test
+        @DisplayName("accepts the time the review happened and schedules from it")
+        void acceptsAReviewedAtFromTheClient() throws Exception {
+            Card card = newCard("front");
+            Instant yesterday = FixedClockConfiguration.NOW.minus(Duration.ofDays(1));
+
+            mvc.perform(review(card.getId(), """
+                            {"confidence": 5, "reviewedAt": "%s"}""".formatted(yesterday)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.intervalDays").value(1))
+                    // One day on from yesterday is today: back in the queue, correctly.
+                    .andExpect(jsonPath("$.dueDate")
+                            .value(FixedClockConfiguration.TODAY.toString()))
+                    .andExpect(jsonPath("$.lastReviewedAt").value(yesterday.toString()));
+        }
+
+        @Test
+        @DisplayName("rejects a review dated in the future as 400")
+        void rejectsAFutureReviewedAt() throws Exception {
+            Card card = newCard("front");
+            Instant tomorrow = FixedClockConfiguration.NOW.plus(Duration.ofDays(1));
+
+            mvc.perform(review(card.getId(), """
+                            {"confidence": 5, "reviewedAt": "%s"}""".formatted(tomorrow)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail")
+                            .value("reviewedAt must not be in the future, was " + tomorrow));
         }
 
         @Test

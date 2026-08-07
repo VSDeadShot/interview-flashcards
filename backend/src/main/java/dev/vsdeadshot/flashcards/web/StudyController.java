@@ -54,13 +54,15 @@ public class StudyController {
      * <p>{@code 200} and the whole card rather than {@code 204}: the new interval, ease factor
      * and due date are the entire point of asking, and the client caches cards by id, so
      * returning the same {@link CardResponse} the queue handed out lets it replace its copy
-     * without a second request.
+     * without a second request. An offline client that predicted the schedule locally replaces
+     * its prediction with this, which is what keeps the two halves from drifting.
      */
     @PostMapping("/{cardId}/review")
     public CardResponse review(
             @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
             @PathVariable long cardId,
             @Valid @RequestBody ReviewRequest request) {
-        return CardResponse.from(study.review(userId, cardId, request.confidence()));
+        return CardResponse.from(
+                study.review(userId, cardId, request.confidence(), request.reviewedAt()));
     }
 }

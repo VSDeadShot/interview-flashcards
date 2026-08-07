@@ -12,6 +12,7 @@ import dev.vsdeadshot.flashcards.repository.ReviewLogRepository;
 import dev.vsdeadshot.flashcards.scheduler.SchedulingState;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import dev.vsdeadshot.flashcards.support.FixedClockConfiguration;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -211,6 +212,113 @@ class StudyServiceTest extends EmbeddedPostgresTest {
             assertEquals(TODAY, card.getDueDate());
             assertFalse(reviewLogs.findAll().stream().findAny().isPresent(),
                     "a rejected review must not leave a log behind");
+        }
+    }
+
+    /**
+     * The offline path. A client that studied without a connection sends the moment it
+     * happened; the server would otherwise stamp the moment it heard about it, crediting the
+     * wrong day to a streak that exists to reward not missing days.
+     */
+    @Nested
+    @DisplayName("reviewing a card studied earlier")
+    class BackdatedReview {
+
+        private static final Instant YESTERDAY = NOW.minus(Duration.ofDays(1));
+
+        @Test
+        @DisplayName("logs it at the moment it happened, not the moment it arrived")
+        void logsWhenItHappened() {
+            Card card = newCard("front");
+
+            Card reviewed = service.review(USER, card.getId(), 5, YESTERDAY);
+
+            assertEquals(YESTERDAY, reviewed.getLastReviewedAt());
+            assertEquals(YESTERDAY, reviewLogs.findAll().get(0).getReviewedAt(),
+                    "the log is what the streak reads, so this is the field that matters");
+        }
+
+        @Test
+        @DisplayName("measures the next interval from that day, so a late review can already be due")
+        void measuresTheIntervalFromThatDay() {
+            Card card = newCard("front");
+
+            Card reviewed = service.review(USER, card.getId(), 5, YESTERDAY);
+
+            assertEquals(1, reviewed.getIntervalDays());
+            assertEquals(TODAY, reviewed.getDueDate(),
+                    "one day after yesterday is today — the card is owed again now");
+            assertFalse(service.queue(USER, StudyService.DEFAULT_LIMIT).isEmpty(),
+                    "and is therefore back in the queue, which is the truthful answer");
+        }
+
+        @Test
+        @DisplayName("treats an absent time as now, which is what an online client sends")
+        void absentMeansNow() {
+            Card card = newCard("front");
+
+            assertEquals(NOW, service.review(USER, card.getId(), 5, null).getLastReviewedAt());
+        }
+
+        @Test
+        @DisplayName("tolerates a device clock slightly ahead of the server's")
+        void allowsSmallClockSkew() {
+            Card card = newCard("front");
+            Instant slightlyAhead = NOW.plus(Duration.ofMinutes(1));
+
+            assertEquals(slightlyAhead,
+                    service.review(USER, card.getId(), 5, slightlyAhead).getLastReviewedAt(),
+                    "a phone a minute fast is not an error worth refusing a review over");
+        }
+
+        @Test
+        @DisplayName("refuses a time meaningfully in the future")
+        void refusesTheFuture() {
+            Card card = newCard("front");
+            Instant tomorrow = NOW.plus(Duration.ofDays(1));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.review(USER, card.getId(), 5, tomorrow),
+                    "a review that has not happened yet cannot be recorded");
+        }
+
+        @Test
+        @DisplayName("refuses a time older than the backdating window")
+        void refusesTheDistantPast() {
+            Card card = newCard("front");
+            Instant tooOld = NOW.minus(StudyService.MAX_BACKDATE).minus(Duration.ofDays(1));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.review(USER, card.getId(), 5, tooOld),
+                    "a device whose clock is wrong by months should be refused, not believed");
+        }
+
+        /**
+         * Out-of-order arrival. One client replaying its own queue in order cannot cause this;
+         * something that does is confused, and rewinding a schedule computed from newer
+         * information would corrupt it silently.
+         */
+        @Test
+        @DisplayName("refuses a review older than the card's last one")
+        void refusesToRewindACard() {
+            Card card = newCard("front");
+            service.review(USER, card.getId(), 5);
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.review(USER, card.getId(), 4, YESTERDAY));
+        }
+
+        @Test
+        @DisplayName("leaves the card untouched when the time is rejected")
+        void doesNotMutateOnARejectedTime() {
+            Card card = newCard("front");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.review(USER, card.getId(), 5, NOW.plus(Duration.ofDays(1))));
+
+            assertEquals(0, card.getRepetitions());
+            assertEquals(TODAY, card.getDueDate());
+            assertTrue(reviewLogs.findAll().isEmpty(), "and no log behind it");
         }
     }
 }

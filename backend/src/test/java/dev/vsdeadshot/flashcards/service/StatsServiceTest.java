@@ -51,6 +51,9 @@ class StatsServiceTest extends EmbeddedPostgresTest {
     private CardService cards;
 
     @Autowired
+    private StudyService study;
+
+    @Autowired
     private ReviewLogRepository reviewLogs;
 
     @PersistenceContext
@@ -337,6 +340,25 @@ class StatsServiceTest extends EmbeddedPostgresTest {
             backdate(card, TODAY.minusDays(10));
 
             assertEquals(0, streak());
+        }
+
+        /**
+         * The whole reason a review carries its own timestamp. Both reviews below reach the
+         * server now; one of them happened yesterday. Stamped on arrival they would collapse
+         * onto today, yesterday would read as a day with a card due and nothing done, and the
+         * streak would end there at 1 — punishing the user for having had no signal.
+         */
+        @Test
+        @DisplayName("counts a day whose review only reached the server later")
+        void countsALateArrivingReview() {
+            Card card = newCard("front");
+            backdate(card, TODAY.minusDays(3));
+            reviewedOn(card, TODAY.minusDays(2), 1);
+
+            study.review(TEST_USER_ID, card.getId(), 5, noonOn(TODAY.minusDays(1)));
+
+            assertEquals(2, streak(),
+                    "yesterday and the day before it, both studied, one of them reported late");
         }
 
         @Test
