@@ -69,6 +69,15 @@ public class TopicService {
             // Two concurrent creates can both pass the check above. uq_topic_user_slug is
             // what actually prevents the duplicate, so the loser of that race is translated
             // into the same failure it would have got a moment earlier.
+            //
+            // Named rather than assumed: this catch sees every integrity violation, and
+            // reporting a future check or foreign key failure as a duplicate slug would be a
+            // wrong 409 naming a value that was never the problem. Anything else is rethrown
+            // and becomes a 500, which is the right answer for a rule the caller could not
+            // have known about.
+            if (!Constraints.isViolationOf("uq_topic_user_slug", e)) {
+                throw e;
+            }
             throw new DuplicateTopicException(slug);
         }
     }
