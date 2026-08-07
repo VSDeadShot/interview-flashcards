@@ -17,8 +17,6 @@ application-local.properties
 # --- Gradle (both builds) ---
 .gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
 
 # --- Java ---
 *.class
@@ -29,6 +27,13 @@ out/
 bin/
 hs_err_pid*
 replay_pid*
+
+# The wrapper, rescued from *.jar above — and it has to come after it, because the last
+# pattern that matches a path is the one that decides. Un-anchored because the wrappers live
+# under backend/ and android/, not beside this file. A build whose wrapper jar is missing
+# cannot bootstrap itself at all, which is the whole point of committing one.
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.properties
 
 # --- Android ---
 *.apk
