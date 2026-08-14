@@ -4,8 +4,11 @@ import androidx.annotation.NonNull;
 import androidx.room.Entity;
 import androidx.room.Index;
 import androidx.room.PrimaryKey;
+import dev.vsdeadshot.flashcards.scheduler.SchedulingState;
+import dev.vsdeadshot.flashcards.scheduler.Sm2Scheduler;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 
 /**
  * A card, holding exactly what {@code CardResponse} carries and nothing invented locally.
@@ -53,4 +56,35 @@ public class CardEntity {
     public Instant lastReviewedAt;
 
     public boolean archived;
+
+    /**
+     * This card's schedule as the scheduler sees it.
+     *
+     * <p>The same bridge the backend's {@code Card} exposes, and for the same reason: the
+     * dependency runs local → scheduler and never back, so nothing in {@code scheduler} has to
+     * know Room exists. These two methods are the only crossing.
+     */
+    public SchedulingState schedulingState() {
+        return new SchedulingState(easeFactor, intervalDays, repetitions, lapses, dueDate);
+    }
+
+    /**
+     * Writes a scheduler result back onto this card.
+     *
+     * <p>Offline this is a <em>prediction</em>: the server runs the same arithmetic on the same
+     * inputs when the queued review reaches it, and its answer replaces these values. Both
+     * normally agree, which is the point of the scheduler being duplicated rather than guessed at.
+     *
+     * @param next the state returned by {@link Sm2Scheduler#schedule}
+     * @param reviewedAt when the review that produced {@code next} happened
+     */
+    public void applySchedule(SchedulingState next, Instant reviewedAt) {
+        Objects.requireNonNull(next, "next must not be null");
+        this.easeFactor = next.easeFactor();
+        this.intervalDays = next.intervalDays();
+        this.repetitions = next.repetitions();
+        this.lapses = next.lapses();
+        this.dueDate = next.dueDate();
+        this.lastReviewedAt = Objects.requireNonNull(reviewedAt, "reviewedAt must not be null");
+    }
 }
