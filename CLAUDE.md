@@ -10,11 +10,13 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: backend only. The Android module does not exist yet. Every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter.
+**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler and its remote layer; what it does not have yet is the sync engine that drives them, or any UI at all.
 
 ## Commands
 
-All from `backend/` (there is no root-level build; the Android module will be a separate Gradle project):
+There is no root-level build. `backend/` and `android/` are separate Gradle projects with their own wrappers, and neither knows about the other.
+
+From `backend/`:
 
 ```bash
 ./gradlew test                  # full suite — no database setup needed, see below
@@ -28,7 +30,29 @@ All from `backend/` (there is no root-level build; the Android module will be a 
 
 `./gradlew test` needs none of that. Tests start their own Postgres (see below).
 
-## Architecture
+From `android/`:
+
+```bash
+./gradlew build                 # compile + unit tests + lint + both APKs
+./gradlew test                  # unit tests only
+./gradlew :app:testDebugUnitTest --tests '*FlashcardsApiTest'   # single class
+```
+
+The single-class form needs the variant-specific task. `:app:test` is an aggregate the Android plugin creates, not a `Test` task, so it has no `--tests` option and fails with "Unknown command-line option".
+
+**`android/local.properties` is gitignored and has to be written by hand on a fresh clone.** Three keys, all read by the build:
+
+```properties
+sdk.dir=C\:/Users/you/AppData/Local/Android/Sdk
+flashcards.apiKey=<the same value the backend gets from FLASHCARDS_API_KEY>
+flashcards.baseUrl=http://10.0.2.2:8080/api/v1/
+```
+
+`sdk.dir` needs forward slashes and an escaped drive colon. `\U` is not a properties escape, so a Windows path written with backslashes silently loses them and the failure surfaces as "The filename, directory name, or volume label syntax is incorrect", which names nothing involved.
+
+Only `sdk.dir` is required to build. A missing `flashcards.apiKey` still compiles and still runs every test — deliberately, since the scheduler and database tests need no key — and is refused by `ApiKeyInterceptor` at construction the moment anything tries to make a request, rather than being sent and answered `401`. `flashcards.baseUrl` defaults to `http://10.0.2.2:8080/api/v1/`, the emulator's alias for the host machine's loopback.
+
+## Backend architecture
 
 **Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17, JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
 
@@ -104,6 +128,48 @@ Consequences worth knowing:
 **Controller tests are deliberately not `@Transactional`** and clean up by hand instead. A test transaction holds one Hibernate session open for the whole method, so the response would be serialised inside the session that loaded it — which production never does. That would hide exactly the lazy-association failures the DTO mapping can produce. Keep new controller tests that way; service and repository tests roll back as usual.
 
 **The fixed clock is opt-in.** `support/FixedClockConfiguration` is a `@TestConfiguration`, so it replaces the `Clock` only in contexts that `@Import` it by name — a plain `@Configuration` under the scanned package would silently apply to every test in the suite, which is easy to depend on without noticing. It must stay top-level rather than nested in a test class: Boot scans for a nested `@TestConfiguration` only on the class it is bootstrapping, and every `@Nested` class bootstraps separately, so inner tests would quietly get the real system clock. `FixedClockConfiguration.TODAY` is never the actual day, so a date assertion cannot pass by coincidence.
+
+## The Android client
+
+**Stack**: AGP 9.3.1, Gradle 9.5.1, `compileSdk`/`targetSdk` 36, `minSdk` 26, Java 17 bytecode, Room 2.8.4, Retrofit 3 on OkHttp 5 with Moshi 1.15.2, JUnit 4 with Robolectric 4.15.1. Two modules: `:app` and `:scheduler`.
+
+**There is no Compose here, and there cannot be.** Jetpack Compose is a Kotlin compiler plugin, so the Java-only rule rules it out — the UI is XML views. This is the one place that constraint costs something real, and it is worth knowing before reaching for a Compose answer to a layout problem.
+
+`minSdk 26` is what makes `java.time` available natively. The scheduler therefore needs no desugaring and computes exactly the dates the backend computes. **Other library APIs are not covered by that**: `Stream.toList()` is API 34 and would compile and then throw `NoSuchMethodError` on a real device. Lint catches these, which is why `./gradlew build` runs it and why a lint error fails the build rather than being reported.
+
+### The scheduler is a copy, on purpose
+
+`:scheduler` holds `Sm2Scheduler` and `SchedulingState` duplicated from the backend rather than shared through a composite build. Sharing would tie the Android build to the backend's, and the backend's zero-setup test property is worth more than the duplication is worth avoiding. The golden vectors are duplicated alongside it, so drift between the two copies fails a test rather than diverging silently — including vectors 6 and 7, which pin the deliberate divergence from DSA Tracker.
+
+The client runs it to *predict* a review's outcome offline. The prediction is replaced by the server's answer when the queued review is accepted; both run the same arithmetic on the same inputs, so it is normally the same value.
+
+### The cache is what the UI reads
+
+Everything on screen comes from Room. The network's job is to keep those tables current, not to answer a question a screen asked — which is what makes every screen work with the radio off.
+
+- **`topic` and `card` are a cache; `pending_review` is not.** The first two can be dropped and pulled again at any time. The outbox is the only record that a review happened, so a destructive schema migration may never apply to it, and it is written before the card it belongs to is touched.
+- **The outbox replays in `id` order and rows are deleted once the server answers.** The order matters: the server refuses a review older than that card's last one. Note the rule is *per card* — reviews of different cards are independent, so a strict global order is stricter than it needs to be and lets one stuck card block the rest.
+- A card is deliberately **not** flagged as dirty alongside an outbox row. Two places claiming to know whether a review is pending will eventually disagree, and then a card is either stuck out of the queue or synced twice. `PendingReviewDao.cardIdsAwaitingSync()` is the single answer, and a pull must not overwrite the cards it names.
+- The pull asks for `includeArchived=true`. A card that merely stopped appearing in a listing is indistinguishable from one that was archived, moved, or missed, and the flag is what tells them apart.
+- **Never show a locally computed streak.** The forgiving rule skips days on which nothing was due, which needs the whole review history and every card's due date as it stood on each of those days. Show the server's cached figure with an "as of" timestamp, or show nothing.
+
+### The remote layer
+
+`data/remote` mirrors the contract; `data/local` mirrors the cache; **neither imports the other**, and `data/Mappers` is the only place a field crosses. Same reason the backend keeps `web/dto` apart from `domain`: the wire format must not become a consequence of the local schema.
+
+- **DTOs are plain classes, not records.** Moshi's record support needs `java.lang.Record` reflection that Android's runtime does not provide, so a record DTO compiles and then fails at runtime. The scheduling fields are primitives so that a JSON null is refused rather than read as zero.
+- **`ProblemInterceptor` turns every non-2xx into an `ApiException` before Retrofit sees it**, so a failure cannot be ignored by accident. The trade is that a non-2xx body is no longer readable through Retrofit; nothing needs it.
+- **`ApiException.disposition()` is the single place that decides what a failure means** — `RETRY`, `DROP`, or `STOP`. A `409` is the only status the server disambiguates for us, via `retryable`: true is a raced idempotency key, false is a reused one. A `409` with no `retryable` field is treated as permanent, because a retry loop on a conflict is the worse of the two failures.
+- **`401` carries no body at all** — the filter rejects before any handler runs, so there is no `problem+json`, no content type, and nothing to parse. Verified against the running backend, and the test says so.
+- Cleartext HTTP is permitted in **debug builds only**, and only for `10.0.2.2` and `localhost`, rather than as a blanket exemption. A real device on the LAN means adding that host to `app/src/debug/res/xml/network_security_config.xml` and setting `flashcards.baseUrl`.
+
+### Android tests
+
+`FlashcardsDatabaseTest` runs real SQLite in memory under Robolectric — the same reasoning as the backend running real Postgres rather than H2. `robolectric.properties` pins `sdk=35` because Robolectric 4.15.1 ships no image above it while the app targets 36; that is pinned rather than lowering `targetSdk`, which would change what the app is to suit a test tool.
+
+The remote and mapper tests deliberately **do not** use Robolectric. Nothing in them touches the Android framework, so keeping it out makes them faster and keeps that API-35 pin confined to the database tests. `FlashcardsApiTest` runs a real `MockWebServer` on a loopback port rather than stubbing the interface, so it exercises OkHttp, Retrofit and Moshi together.
+
+What a mock server cannot prove is that this client and Jackson agree on the wire format. They do, checked against the running backend in both directions: an `Instant` crosses as `Instant.toString()`, a `LocalDate` as `LocalDate.toString()`, a replayed `clientCardId` answers `200` with the original body, and a replayed `clientReviewId` does not apply SM-2 twice.
 
 ## Conventions
 
