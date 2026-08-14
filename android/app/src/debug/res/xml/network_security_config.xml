@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug builds only. The backend runs over plain HTTP on a development machine, and Android
+    has refused cleartext by default since API 28.
+
+    Named hosts rather than cleartextTrafficPermitted="true" on the base config: a blanket
+    permission would also apply to any other host the app ever talked to, and the point is to
+    reach one development server, not to turn the guarantee off. The release build has no
+    config at all and so keeps the platform default, which is no cleartext anywhere.
+
+    10.0.2.2 is the emulator's alias for the host machine's loopback. Testing on a real device
+    means adding that machine's LAN address here and setting flashcards.baseUrl to match.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

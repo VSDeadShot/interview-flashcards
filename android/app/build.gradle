@@ -2,6 +2,17 @@ plugins {
     id 'com.android.application'
 }
 
+// The API key and the server's address are per-machine, and local.properties is gitignored.
+// Reading them here is what keeps them out of the repo while still letting the app be built
+// with one command. Missing values fall back to a blank key rather than failing the build,
+// so a fresh clone can still run the scheduler and database tests, which need neither; the
+// blank is refused loudly by ApiKeyInterceptor the moment anything tries to make a request.
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
 android {
     namespace 'dev.vsdeadshot.flashcards'
     compileSdk 36
@@ -15,6 +26,15 @@ android {
         versionCode 1
         versionName '0.1'
 
+        buildConfigField 'String', 'API_KEY',
+                "\"${localProperties.getProperty('flashcards.apiKey', '')}\""
+        // 10.0.2.2 is the emulator's alias for the host machine's loopback, so the default
+        // reaches a backend started with bootRun and nothing has to be configured to try the
+        // app. A real device needs a LAN address here and the same host added to the debug
+        // network security config.
+        buildConfigField 'String', 'BASE_URL',
+                "\"${localProperties.getProperty('flashcards.baseUrl', 'http://10.0.2.2:8080/api/v1/')}\""
+
         javaCompileOptions {
             annotationProcessorOptions {
                 // Room writes the schema as JSON here. It is committed, so a change to an
@@ -23,6 +43,12 @@ android {
                 arguments += ['room.schemaLocation': "$projectDir/schemas".toString()]
             }
         }
+    }
+
+    buildFeatures {
+        // Off by default since AGP 8. The generated BuildConfig is how the key and base URL
+        // reach the code without being written down anywhere the repo can see.
+        buildConfig true
     }
 
     compileOptions {
@@ -52,8 +78,21 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.8.4'
     annotationProcessor 'androidx.room:room-compiler:2.8.4'
 
+    // Retrofit 3 runs on OkHttp 5. Moshi rather than Gson: same maintainers as Retrofit and
+    // OkHttp so the three versions move together, and it is the stricter reader of the two —
+    // a JSON null where the DTO declares a primitive is refused rather than silently left at
+    // zero, which is the difference between a schedule that fails loudly and one that quietly
+    // resets. Its Kotlin codegen is not used; the DTOs are plain Java classes read reflectively.
+    implementation 'com.squareup.retrofit2:retrofit:3.0.0'
+    implementation 'com.squareup.retrofit2:converter-moshi:3.0.0'
+    implementation 'com.squareup.moshi:moshi:1.15.2'
+
     testImplementation 'junit:junit:4.13.2'
     // Runs the Android framework on the JVM, so the database tests need no emulator — the
     // same reason the backend runs Postgres in-process rather than asking for Docker.
     testImplementation 'org.robolectric:robolectric:4.15.1'
+    // A real HTTP server on a loopback port, so the remote tests exercise OkHttp, Retrofit and
+    // Moshi rather than a stubbed interface — the same reason the database tests run real
+    // SQLite. Those tests need no Android framework and so do not run under Robolectric.
+    testImplementation 'com.squareup.okhttp3:mockwebserver3:5.4.0'
 }
