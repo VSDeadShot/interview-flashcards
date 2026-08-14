@@ -28,8 +28,9 @@ public final class ApiException extends IOException {
         /**
          * Permanent. The server will never accept this request, so keeping it queued blocks
          * everything behind it forever — a review for a card archived on another device is the
-         * realistic case. Dropped, but the reason is kept on the row so it is visible rather
-         * than merely gone.
+         * realistic case. The row is deleted rather than marked dead: it is also what keeps
+         * its card out of every pull, so a row left behind freezes that card permanently. The
+         * reason is logged and counted by the sync instead.
          */
         DROP,
 
