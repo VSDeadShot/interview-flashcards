@@ -7,6 +7,7 @@ import androidx.room.Query;
 import androidx.room.Update;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Dao
 public interface CardDao {
@@ -57,6 +58,39 @@ public interface CardDao {
 
     @Query("select * from card where id = :id")
     CardEntity findById(long id);
+
+    /**
+     * Cards written on this device that the server has not been told about, oldest first.
+     *
+     * <p>Local ids run downwards, so {@code id desc} is creation order — the card written first
+     * has the id closest to zero. Rows carrying a {@code syncError} are left out: the server has
+     * already refused them in a way that will repeat, and sending them again every sync would
+     * spend the battery re-deriving the same answer.
+     */
+    @Query("select * from card where serverId is null and syncError is null order by id desc")
+    List<CardEntity> pendingCreates();
+
+    /** How many of the above there are, for the tally a run reports. */
+    @Query("select count(*) from card where serverId is null and syncError is null")
+    int pendingCreateCount();
+
+    /** The local row holding this server id, or null when the server id is new here. */
+    @Query("select id from card where serverId = :serverId")
+    Long localIdForServerId(long serverId);
+
+    /**
+     * The local row this key was minted for, or null when it was minted somewhere else.
+     *
+     * <p>This is the lookup that repairs a create whose response was lost: the card comes back
+     * from a listing under a server id this client has never seen, and the key is the only thing
+     * on it that names the row already sitting here.
+     */
+    @Query("select id from card where clientCardId = :clientCardId")
+    Long localIdForClientCardId(UUID clientCardId);
+
+    /** Parks a card the server will refuse again, with the reason it gave. */
+    @Query("update card set syncError = :detail where id = :id")
+    void recordSyncFailure(long id, String detail);
 
     @Query("select * from card where archived = 0 order by id asc")
     List<CardEntity> findAllActive();

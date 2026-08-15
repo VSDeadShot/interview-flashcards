@@ -70,6 +70,15 @@ public class CardEntity {
      */
     public UUID clientCardId;
 
+    /**
+     * Why the server refused to create this card, or null. Set only for a refusal that will
+     * repeat — a topic that does not exist there, a side longer than the column allows — which
+     * is why a card carrying one is not sent again. It is not deleted either: this row is the
+     * only copy of what the user wrote, so a permanent failure parks the card instead of
+     * discarding it, and editing the card clears this and offers it again.
+     */
+    public String syncError;
+
     public long topicId;
 
     @NonNull

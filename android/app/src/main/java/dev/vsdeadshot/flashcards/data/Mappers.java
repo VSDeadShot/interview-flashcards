@@ -4,6 +4,7 @@ import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.PendingReviewEntity;
 import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.data.remote.dto.CardDto;
+import dev.vsdeadshot.flashcards.data.remote.dto.CardRequestDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.ReviewRequestDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.TopicDto;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public final class Mappers {
         entity.dueDate = dto.dueDate;
         entity.lastReviewedAt = dto.lastReviewedAt;
         entity.archived = dto.archived;
+        entity.clientCardId = dto.clientCardId;
         return entity;
     }
 
@@ -55,6 +57,16 @@ public final class Mappers {
             entities.add(toEntity(dto));
         }
         return entities;
+    }
+
+    /**
+     * The body of the create for a card written on this device.
+     *
+     * <p>The key travels with the card rather than being generated here, which is what makes the
+     * request safe to repeat: every attempt carries the value stored on the row.
+     */
+    public static CardRequestDto toCreateRequest(CardEntity card) {
+        return new CardRequestDto(card.topicId, card.front, card.back, card.clientCardId);
     }
 
     public static TopicEntity toEntity(TopicDto dto) {

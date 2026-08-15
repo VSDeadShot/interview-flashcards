@@ -22,11 +22,16 @@ import retrofit2.Call;
 import retrofit2.Response;
 
 /**
- * Reconciles the cache with the server: the outbox goes up, then everything comes back down.
+ * Reconciles the cache with the server: everything written here goes up, then everything comes
+ * back down.
  *
  * <p>Push first, and not for tidiness. A pull run first would fetch the server's row for every
  * card whose review is still queued — rows it is about to invalidate — and would leave a window
  * where a card the user has already answered is showing as due again.
+ *
+ * <p>Within the push, cards go before reviews. A review can only be sent against a server id,
+ * and a card written on this device has none until its create is accepted, so a card written and
+ * studied in the same offline session syncs completely in one run rather than two.
  *
  * <p>Nothing here knows about threads or schedules. {@link #sync()} blocks, and the class it
  * blocks on behalf of is a WorkManager worker, which is also where a guard against two
@@ -48,18 +53,97 @@ public final class SyncEngine {
     public SyncResult sync() {
         Push push = push();
         if (push.stopped) {
-            return new SyncResult(Outcome.STOPPED, push.pushed, push.dropped, push.stalled, 0, 0);
+            return result(Outcome.STOPPED, push, 0, 0);
         }
         try {
             Pull pull = pull();
-            return new SyncResult(
-                    Outcome.OK, push.pushed, push.dropped, push.stalled, pull.topics, pull.cards);
+            return result(Outcome.OK, push, pull.topics, pull.cards);
         } catch (IOException failure) {
             Outcome outcome = ApiException.dispositionOf(failure) == Disposition.STOP
                     ? Outcome.STOPPED
                     : Outcome.FAILED;
-            return new SyncResult(outcome, push.pushed, push.dropped, push.stalled, 0, 0);
+            return result(outcome, push, 0, 0);
         }
+    }
+
+    private static SyncResult result(Outcome outcome, Push push, int topics, int cards) {
+        return new SyncResult(
+                outcome, push.created, push.pushed, push.dropped, push.stalled, push.blocked,
+                topics, cards);
+    }
+
+    private Push push() {
+        Creates creates = pushCreates();
+        if (creates.stopped) {
+            // The key was refused, so nothing else would be accepted either. Everything still
+            // outstanding is stalled rather than blocked: a rejected key is not a card the
+            // server has an opinion about, and the distinction only matters for work a retry
+            // cannot fix on its own.
+            return new Push(creates.created, 0, 0, outstanding(), 0, true);
+        }
+        Reviews reviews = pushReviews();
+        if (reviews.stopped) {
+            return new Push(creates.created, reviews.pushed, reviews.dropped, outstanding(), 0,
+                    true);
+        }
+        return new Push(
+                creates.created,
+                reviews.pushed,
+                reviews.dropped,
+                creates.stalled + reviews.stalled,
+                creates.blocked + reviews.blocked,
+                false);
+    }
+
+    /** Everything still waiting to go, ignoring what has been parked. */
+    private int outstanding() {
+        return db.cards().pendingCreateCount() + db.pendingReviews().size();
+    }
+
+    /**
+     * Offers every card written on this device that the server has not made yet.
+     *
+     * <p>Unlike a card's reviews these are independent of one another, so a failure moves on to
+     * the next card rather than stopping: there is no order between two creates for the server
+     * to refuse.
+     *
+     * <p>A permanent refusal <strong>parks</strong> the card rather than deleting it. This is the
+     * opposite of what happens to a review, and for the opposite reason: a review is an event,
+     * and dropping it costs one answer while keeping the card moving. A card is the content
+     * itself, and there is nothing to reconstruct it from — so the row stays, the server's reason
+     * is written on it, and editing the card offers it again.
+     */
+    private Creates pushCreates() {
+        int created = 0;
+        int stalled = 0;
+        int blocked = 0;
+
+        for (CardEntity card : db.cards().pendingCreates()) {
+            try {
+                CardDto answer = execute(api.createCard(Mappers.toCreateRequest(card)));
+                // The server's row, under this device's id. The local id never moves — every
+                // queued review points at it, and rewriting it is what this whole scheme exists
+                // to avoid.
+                CardEntity confirmed = Mappers.toEntity(answer);
+                confirmed.id = card.id;
+                db.cards().update(confirmed);
+                created++;
+            } catch (IOException failure) {
+                Disposition disposition = ApiException.dispositionOf(failure);
+                if (disposition == Disposition.STOP) {
+                    return new Creates(created, 0, 0, true);
+                }
+                if (disposition == Disposition.RETRY) {
+                    stalled++;
+                    continue;
+                }
+                Log.w(TAG, "Parking card " + card.id + " (" + card.clientCardId + "): "
+                        + failure.getMessage());
+                db.cards().recordSyncFailure(card.id, failure.getMessage());
+                blocked++;
+            }
+        }
+        return new Creates(created, stalled, blocked, false);
     }
 
     /**
@@ -71,12 +155,30 @@ public final class SyncEngine {
      * would let one card the server keeps refusing hold up every review queued behind it.
      * Grouped, a stuck card stalls only itself.
      */
-    private Push push() {
+    private Reviews pushReviews() {
         int pushed = 0;
         int dropped = 0;
         int stalled = 0;
+        int blocked = 0;
 
-        for (List<PendingReviewEntity> chain : queuedByCard().values()) {
+        for (Map.Entry<Long, List<PendingReviewEntity>> entry : queuedByCard().entrySet()) {
+            long localCardId = entry.getKey();
+            List<PendingReviewEntity> chain = entry.getValue();
+
+            CardEntity card = db.cards().findById(localCardId);
+            if (card == null || card.serverId == null) {
+                // A review is addressed to a server id, and this card has none. Either its
+                // create has not been accepted yet — in which case the next run may fix it — or
+                // the server refuses to make it at all, and then no retry of these reviews will
+                // ever land.
+                if (card == null || card.syncError != null) {
+                    blocked += chain.size();
+                } else {
+                    stalled += chain.size();
+                }
+                continue;
+            }
+
             // The last answer the server gave for this card, held back rather than written as
             // it arrives. Writing each one would step the card through the schedules of the
             // reviews accepted so far, and a chain that stalls half way would leave the card
@@ -86,16 +188,14 @@ public final class SyncEngine {
 
             for (PendingReviewEntity review : chain) {
                 try {
-                    confirmed = execute(api.review(review.cardId, Mappers.toRequest(review)));
+                    confirmed = execute(
+                            api.review(card.serverId, Mappers.toRequest(review)));
                     db.pendingReviews().delete(review);
                     pushed++;
                 } catch (IOException failure) {
                     Disposition disposition = ApiException.dispositionOf(failure);
                     if (disposition == Disposition.STOP) {
-                        // Everything still queued is stalled, not just the rest of this chain:
-                        // the key that was refused here would be refused by every card's
-                        // requests, including the chains this loop has not reached.
-                        return new Push(pushed, dropped, db.pendingReviews().size(), true);
+                        return new Reviews(pushed, dropped, 0, 0, true);
                     }
                     if (disposition == Disposition.RETRY) {
                         db.pendingReviews().recordFailure(review.id, failure.getMessage());
@@ -108,7 +208,7 @@ public final class SyncEngine {
                     // frozen forever is worse than a lost answer. The reason is logged and
                     // counted rather than kept on the row, since the row is what has to go.
                     Log.w(TAG, "Dropping review " + review.clientReviewId + " of card "
-                            + review.cardId + ": " + failure.getMessage());
+                            + localCardId + ": " + failure.getMessage());
                     db.pendingReviews().delete(review);
                     dropped++;
                 }
@@ -119,10 +219,12 @@ public final class SyncEngine {
             // reason. If every row was dropped there is no answer to write, and the card is now
             // absent from cardIdsAwaitingSync() — so the pull below repairs it.
             if (drained && confirmed != null) {
-                db.cards().upsertAll(List.of(Mappers.toEntity(confirmed)));
+                CardEntity updated = Mappers.toEntity(confirmed);
+                updated.id = localCardId;
+                db.cards().upsertAll(List.of(updated));
             }
         }
-        return new Push(pushed, dropped, stalled, false);
+        return new Reviews(pushed, dropped, stalled, blocked, false);
     }
 
     private Map<Long, List<PendingReviewEntity>> queuedByCard() {
@@ -184,6 +286,9 @@ public final class SyncEngine {
         // while the network was busy would otherwise not be in a list taken earlier, and its
         // card would be overwritten by the server's row from before that review — losing the
         // prediction the user is looking at and putting the card back in today's queue.
+        //
+        // These are local ids, which is why the check below is against the resolved row and not
+        // against the id the server sent.
         Set<Long> awaitingSync = new HashSet<>(db.pendingReviews().cardIdsAwaitingSync());
 
         List<CardEntity> toWrite = new ArrayList<>(dtos.size());
@@ -192,13 +297,43 @@ public final class SyncEngine {
             // Every card the server listed, including the skipped ones. They exist; leaving
             // them out would have deleteMissing delete exactly the cards with unsent work.
             serverIds.add(dto.id);
-            if (!awaitingSync.contains(dto.id)) {
-                toWrite.add(Mappers.toEntity(dto));
+
+            Long localId = localIdFor(dto);
+            if (localId != null && awaitingSync.contains(localId)) {
+                continue;
             }
+            CardEntity entity = Mappers.toEntity(dto);
+            if (localId != null) {
+                // Keep the row where it is. A card created here has a local id nothing on the
+                // server knows about, and inserting the server's answer under the server's id
+                // instead would leave two rows for one card — which is the duplicate the
+                // echoed key exists to prevent.
+                entity.id = localId;
+            }
+            toWrite.add(entity);
         }
         db.cards().upsertAll(toWrite);
         db.cards().deleteMissing(serverIds);
         return toWrite.size();
+    }
+
+    /**
+     * The local row this card belongs in, or null when it is new here.
+     *
+     * <p>By server id first, which is every card this cache has pulled before. Failing that by
+     * the key this device minted, which is the case worth having: the create was accepted and
+     * the response never arrived, so the row here still has no server id and the card would
+     * otherwise be inserted a second time under one. Resolving it repairs the row instead —
+     * including clearing any {@code syncError}, since a card the server has plainly does exist.
+     */
+    private Long localIdFor(CardDto dto) {
+        Long byServerId = db.cards().localIdForServerId(dto.id);
+        if (byServerId != null) {
+            return byServerId;
+        }
+        return dto.clientCardId == null
+                ? null
+                : db.cards().localIdForClientCardId(dto.clientCardId);
     }
 
     /**
@@ -215,7 +350,15 @@ public final class SyncEngine {
         return body;
     }
 
-    private record Push(int pushed, int dropped, int stalled, boolean stopped) {
+    private record Push(
+            int created, int pushed, int dropped, int stalled, int blocked, boolean stopped) {
+    }
+
+    private record Creates(int created, int stalled, int blocked, boolean stopped) {
+    }
+
+    private record Reviews(
+            int pushed, int dropped, int stalled, int blocked, boolean stopped) {
     }
 
     private record Pull(int topics, int cards) {

@@ -44,9 +44,11 @@ public final class SyncWorker extends Worker {
     public Result doWork() {
         SyncResult result = engine.sync();
         Log.i(TAG, "Sync " + result.outcome()
-                + ": pushed " + result.pushed()
+                + ": created " + result.created()
+                + ", pushed " + result.pushed()
                 + ", dropped " + result.dropped()
                 + ", stalled " + result.stalled()
+                + ", blocked " + result.blocked()
                 + ", wrote " + result.topicsWritten() + " topics and "
                 + result.cardsWritten() + " cards");
 

@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
  */
 @Database(
         entities = {TopicEntity.class, CardEntity.class, PendingReviewEntity.class},
-        version = 2,
+        version = 3,
         exportSchema = true)
 @TypeConverters(Converters.class)
 public abstract class FlashcardsDatabase extends RoomDatabase {
@@ -58,6 +58,17 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
         }
     };
 
+    /**
+     * Adds the reason a create was refused. A card that cannot be created is parked rather than
+     * deleted, so there has to be somewhere to say why.
+     */
+    static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("alter table card add column syncError TEXT");
+        }
+    };
+
     private static volatile FlashcardsDatabase instance;
 
     public static FlashcardsDatabase get(Context context) {
@@ -71,7 +82,7 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
                             // No destructive fallback. An unsynced card lives in this file and
                             // nowhere else, so a missing migration must fail loudly rather than
                             // quietly discard what the user wrote.
-                            .addMigrations(MIGRATION_1_2)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                             .build();
                 }
             }

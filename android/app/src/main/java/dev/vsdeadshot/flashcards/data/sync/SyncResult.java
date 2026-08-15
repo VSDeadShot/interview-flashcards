@@ -9,19 +9,25 @@ package dev.vsdeadshot.flashcards.data.sync;
  * and run anywhere.
  *
  * @param outcome how far the run got
+ * @param created cards written on this device that the server has now made
  * @param pushed reviews the server accepted and that are now gone from the outbox
  * @param dropped reviews the server will never accept, discarded so they stop blocking the card
  *     behind them
- * @param stalled reviews still queued because sending one failed in a way worth retrying
+ * @param stalled work still outstanding because sending it failed in a way worth retrying
+ * @param blocked work still outstanding that retrying cannot fix — a card the server refuses for
+ *     a reason that will repeat, and any review of it. Counted so it is visible, and deliberately
+ *     kept out of {@link #hasWorkLeft()}
  * @param topicsWritten topics the pull wrote to the cache
  * @param cardsWritten cards the pull wrote — fewer than the server listed when a card was
  *     skipped for having a review still queued
  */
 public record SyncResult(
         Outcome outcome,
+        int created,
         int pushed,
         int dropped,
         int stalled,
+        int blocked,
         int topicsWritten,
         int cardsWritten) {
 
@@ -45,9 +51,14 @@ public record SyncResult(
     }
 
     /**
-     * Whether work is still outstanding. True after a run that pushed nothing because the
+     * Whether another attempt is worth making. True after a run that pushed nothing because the
      * network was down, and equally after one that pushed nine reviews and stalled on the
      * tenth — a caller scheduling the next attempt cares about the queue, not the tally.
+     *
+     * <p><strong>{@code blocked} is deliberately not part of this.</strong> Work the server
+     * refuses for a reason that will repeat is outstanding, but no backoff timer will change the
+     * answer — only a person editing the card will. Counting it here would have the worker retry
+     * for as long as the card sits there, spending the battery to be told the same thing.
      */
     public boolean hasWorkLeft() {
         return outcome != Outcome.OK || stalled > 0;

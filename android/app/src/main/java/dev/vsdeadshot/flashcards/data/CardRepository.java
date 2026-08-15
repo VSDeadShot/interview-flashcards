@@ -70,11 +70,16 @@ public final class CardRepository {
     }
 
     /**
-     * Replaces the text and the topic. The schedule is untouched, exactly as on the server —
-     * correcting a typo must not reset a card's progress.
+     * Replaces the text and the topic of a card the server has not created yet. The schedule is
+     * untouched, exactly as on the server — correcting a typo must not reset a card's progress.
      *
-     * <p>This works the same for a card the server has never seen as for one it has, because
-     * both are ordinary rows in the same table. That is the whole benefit of the local id.
+     * <p>Editing also clears a {@code syncError}, which is the whole recovery path for a card
+     * the server refused: it says why, the user fixes it, and the card is offered again.
+     *
+     * <p><strong>A card that already has a {@code serverId} is refused</strong>, because nothing
+     * yet sends an edit to the server and the next pull would overwrite the row with the server's
+     * copy — so the change would be silently reverted rather than saved. Refusing says that;
+     * writing it would not.
      */
     public CardEntity edit(long localId, long topicId, String front, String back) {
         String question = require(front, "front");
@@ -85,12 +90,18 @@ public final class CardRepository {
             if (card == null) {
                 throw new IllegalArgumentException("No cached card with id " + localId);
             }
+            if (card.serverId != null) {
+                throw new IllegalArgumentException(
+                        "Card " + localId + " exists on the server and editing it is not"
+                                + " synced yet; the next pull would revert the change");
+            }
             if (db.topics().findById(topicId) == null) {
                 throw new IllegalArgumentException("No cached topic with id " + topicId);
             }
             card.topicId = topicId;
             card.front = question;
             card.back = answer;
+            card.syncError = null;
             db.cards().update(card);
             return card;
         });

@@ -2,6 +2,7 @@ package dev.vsdeadshot.flashcards.data.remote.dto;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 /**
  * A card as the server returns it — from a listing, a create, an update, the study queue, and
@@ -29,4 +30,15 @@ public class CardDto {
     public Instant lastReviewedAt;
 
     public boolean archived;
+
+    /**
+     * The key whoever created this card sent with it, or null — for a card the server made
+     * itself, or one created before this field existed. Boxed, and nullable, because most cards
+     * do not have one.
+     *
+     * <p>This is what lets a create whose response was lost be recognised. The card is on the
+     * server and still queued here; the id it comes back under means nothing to this client, but
+     * the key does, and it names the local row exactly.
+     */
+    public UUID clientCardId;
 }

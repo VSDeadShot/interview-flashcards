@@ -175,6 +175,28 @@ public class CardRepositoryTest {
                 written.clientCardId, db.cards().findById(written.id).clientCardId);
     }
 
+    /**
+     * Nothing sends an edit to the server yet, so the next pull would overwrite the row with the
+     * server's copy and the change would vanish. Refusing says that; writing it would not.
+     */
+    @Test
+    public void aCardTheServerAlreadyHasCannotBeEditedYet() {
+        CardEntity pulled = new CardEntity();
+        pulled.id = 1L;
+        pulled.serverId = 1L;
+        pulled.topicId = 1L;
+        pulled.front = "from the server";
+        pulled.back = "back";
+        pulled.dueDate = TODAY;
+        db.cards().upsertAll(List.of(pulled));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.edit(1L, 1L, "changed", "back"));
+
+        assertEquals("and the row is left as the server has it",
+                "from the server", db.cards().findById(1L).front);
+    }
+
     @Test
     public void aCardThatIsNotCachedCannotBeEdited() {
         assertThrows(IllegalArgumentException.class,

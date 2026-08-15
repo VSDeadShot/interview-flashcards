@@ -18,7 +18,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 /**
- * The version 1 to 2 migration, against a real version 1 file.
+ * Every migration, run against a real version 1 file.
  *
  * <p>This one is worth its length. The migration adds the local id scheme, and the way to get
  * that wrong is to rebuild {@code card} — which assigns new row ids, while every row in
@@ -64,7 +64,7 @@ public class FlashcardsDatabaseMigrationTest {
     public void aQueuedReviewStillFindsItsCardAfterTheMigration() {
         writeVersion1Database();
 
-        db = openAtVersion2();
+        db = openAtCurrentVersion();
 
         PendingReviewEntity queued = db.pendingReviews().queued().get(0);
         assertEquals("the outbox row is untouched", 7L, queued.cardId);
@@ -76,13 +76,15 @@ public class FlashcardsDatabaseMigrationTest {
     public void everyMigratedCardKeepsItsIdAndGainsItAsAServerId() {
         writeVersion1Database();
 
-        db = openAtVersion2();
+        db = openAtCurrentVersion();
 
         CardEntity card = db.cards().findById(7L);
         assertNotNull("the row survives with the id it had", card);
         assertEquals("which in a version 1 database was the server's own id",
                 Long.valueOf(7L), card.serverId);
         assertNull("nothing was written here, so there is no create key", card.clientCardId);
+        assertNull("and nothing has been refused, the card having never been offered",
+                card.syncError);
         assertEquals("and the rest of the row came across intact", "What is a deadlock?",
                 card.front);
         assertEquals(6, card.intervalDays);
@@ -97,15 +99,16 @@ public class FlashcardsDatabaseMigrationTest {
     public void aMigratedCardIsStillACacheTheServerCanDrop() {
         writeVersion1Database();
 
-        db = openAtVersion2();
+        db = openAtCurrentVersion();
         db.cards().deleteMissing(List.of(99L));
 
         assertNull("the server no longer lists it, so it goes", db.cards().findById(7L));
     }
 
-    private FlashcardsDatabase openAtVersion2() {
+    /** Every migration, in order — Room runs the whole chain from whatever version it finds. */
+    private FlashcardsDatabase openAtCurrentVersion() {
         return Room.databaseBuilder(context, FlashcardsDatabase.class, NAME)
-                .addMigrations(FlashcardsDatabase.MIGRATION_1_2)
+                .addMigrations(FlashcardsDatabase.MIGRATION_1_2, FlashcardsDatabase.MIGRATION_2_3)
                 .allowMainThreadQueries()
                 .build();
     }
