@@ -1,6 +1,7 @@
 package dev.vsdeadshot.flashcards.data.sync;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -72,6 +73,59 @@ public class SyncEngineTest {
     public void tearDown() {
         db.close();
         server.close();
+    }
+
+    // ---- the streak ------------------------------------------------------------------------
+
+    @Test
+    public void theStreakIsAskedForLastAndKeptWithWhenItWasAsked() throws InterruptedException {
+        respond(200, "[]");
+        respond(200, "[]");
+        respond(200, STATS);
+
+        engine.sync();
+
+        assertEquals("/api/v1/topics", server.takeRequest().getTarget());
+        assertEquals("/api/v1/cards?includeArchived=true", server.takeRequest().getTarget());
+        assertEquals("the streak is the last thing asked for", "/api/v1/stats",
+                server.takeRequest().getTarget());
+        assertEquals("and the one figure worth keeping is stored",
+                3, db.stats().snapshot().currentStreakDays);
+        assertNotNull("with when this client asked", db.stats().snapshot().fetchedAt);
+    }
+
+    /**
+     * Topics and cards are the app; the streak is decoration on one screen. Letting a hiccup
+     * fetching it turn a completed pull into a failed one would have the worker retry everything
+     * it had just finished doing.
+     */
+    @Test
+    public void aStreakThatCannotBeFetchedDoesNotFailThePull() {
+        respond(200, "[]");
+        respond(200, "[" + serverCard(1L, 6) + "]");
+        respond(503, "{}");
+
+        SyncResult result = engine.sync();
+
+        assertEquals("the pull completed", Outcome.OK, result.outcome());
+        assertEquals("and wrote what it came for", 1, result.cardsWritten());
+        assertFalse("with nothing to come back for", result.hasWorkLeft());
+    }
+
+    @Test
+    public void aStreakThatCannotBeFetchedLeavesTheLastOneAlone() {
+        respond(200, "[]");
+        respond(200, "[]");
+        respond(200, STATS);
+        engine.sync();
+
+        respond(200, "[]");
+        respond(200, "[]");
+        respond(503, "{}");
+        engine.sync();
+
+        assertEquals("the previous answer stays; only its 'as of' gets older",
+                3, db.stats().snapshot().currentStreakDays);
     }
 
     // ---- fixtures -------------------------------------------------------------------------
@@ -153,6 +207,11 @@ public class SyncEngineTest {
              "detail": "clientReviewId already used for a different review",
              "retryable": false}""";
 
+    /** The pull asks for the streak last; every run below answers it so nothing is left waiting. */
+    private static final String STATS = """
+            {"totalCards": 1, "dueToday": 0, "reviewedToday": 0, "currentStreakDays": 3,
+             "byTopic": []}""";
+
     // ---- order ----------------------------------------------------------------------------
 
     @Test
@@ -162,6 +221,8 @@ public class SyncEngineTest {
         respond(200, serverCard(1L, 10));
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 10) + "]");
+
+        respond(200, STATS);
 
         engine.sync();
 
@@ -181,6 +242,8 @@ public class SyncEngineTest {
         // push. Were the pull allowed to succeed it would write the same card and prove nothing.
         respond(500, "{}");
 
+        respond(200, STATS);
+
         SyncResult result = engine.sync();
 
         assertEquals("the accepted review should no longer be queued", 0, db.pendingReviews().size());
@@ -196,6 +259,8 @@ public class SyncEngineTest {
         enqueueReview(1L, 4);
         respond(200, serverCard(1L, 10));
         respond(500, "{}");
+
+        respond(200, STATS);
 
         SyncResult result = engine.sync();
 
@@ -215,6 +280,8 @@ public class SyncEngineTest {
         respond(200, serverCard(2L, 10));      // card 2's review, sent anyway
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 6) + "," + serverCard(2L, 10) + "]");
+
+        respond(200, STATS);
 
         SyncResult result = engine.sync();
 
@@ -237,6 +304,8 @@ public class SyncEngineTest {
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 6) + "]");
 
+        respond(200, STATS);
+
         SyncResult result = engine.sync();
 
         assertEquals("the accepted review is gone from the outbox", 1, db.pendingReviews().size());
@@ -257,6 +326,8 @@ public class SyncEngineTest {
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 6) + "]");
 
+        respond(200, STATS);
+
         engine.sync();
 
         assertEquals("skipped by the upsert", PREDICTED_INTERVAL, cachedInterval(1L));
@@ -276,6 +347,8 @@ public class SyncEngineTest {
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 6) + "]");
 
+        respond(200, STATS);
+
         engine.sync();
 
         PendingReviewEntity stalled = db.pendingReviews().queued().get(0);
@@ -291,6 +364,8 @@ public class SyncEngineTest {
         respondWithProblem(409, RETRYABLE_FALSE);
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 6) + "]");
+
+        respond(200, STATS);
 
         SyncResult result = engine.sync();
 
@@ -313,6 +388,8 @@ public class SyncEngineTest {
         // Exactly what the running backend sends: the filter rejects before any handler runs,
         // so there is no problem+json and no body at all.
         server.enqueue(new MockResponse.Builder().code(401).build());
+
+        respond(200, STATS);
 
         SyncResult result = engine.sync();
 
@@ -337,6 +414,8 @@ public class SyncEngineTest {
         respond(200, "[" + serverTopic(1L, "Operating Systems") + "]");
         respond(200, "[" + serverCard(1L, 6) + "]");
 
+        respond(200, STATS);
+
         SyncResult result = engine.sync();
 
         assertEquals(Outcome.OK, result.outcome());
@@ -353,6 +432,8 @@ public class SyncEngineTest {
         cacheCardWithPrediction(2L);
         respond(200, "[]");
         respond(200, "[" + serverCard(1L, 6) + "]");
+
+        respond(200, STATS);
 
         engine.sync();
 
@@ -374,6 +455,8 @@ public class SyncEngineTest {
         cacheCardWithPrediction(1L);
         respond(200, "[]");
         respond(200, "[]");
+
+        respond(200, STATS);
 
         SyncResult result = engine.sync();
 

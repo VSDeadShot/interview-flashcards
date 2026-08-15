@@ -83,6 +83,9 @@ public final class ReviewRepository {
 
             card.applySchedule(next, reviewedAt);
             db.cards().update(card);
+            // In the same transaction as the outbox row, so the count on a stats screen can
+            // never disagree with what was actually queued.
+            db.stats().recordReview(today);
             return card;
         });
     }

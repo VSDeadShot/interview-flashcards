@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, and offline authoring, editing and archiving that all sync; what it does not have yet is stats, or any UI at all.
+**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and the figures a stats screen reads; what it does not have yet is any UI at all.
 
 ## Commands
 
@@ -154,7 +154,8 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 - **A review is an event and lives in an outbox; an edit is a state and lives on the row.** Two reviews of one card are two facts, both must be sent, and order matters — so `pending_review` holds them and a card is deliberately **not** also flagged as dirty, because two places claiming to know whether a review is pending will eventually disagree. An edit or an archive is the opposite: only the latest content matters, `PUT` replaces, and `card.pendingSince` is the only record there is. The objection is to *two* places, not to markers.
 - `CardDao.localIdsWithUnsentWork()` is the single answer to what a pull may not overwrite, whatever kind of work is unsent. Add the next kind there rather than as a third list.
 - The pull asks for `includeArchived=true`. A card that merely stopped appearing in a listing is indistinguishable from one that was archived, moved, or missed, and the flag is what tells them apart.
-- **Never show a locally computed streak.** The forgiving rule skips days on which nothing was due, which needs the whole review history and every card's due date as it stood on each of those days. Show the server's cached figure with an "as of" timestamp, or show nothing.
+- **Never show a locally computed streak.** The forgiving rule skips days on which nothing was due, which needs the whole review history and every card's due date as it stood on each of those days. `stats_snapshot` holds the server's figure and when it was fetched; `StatsView.streakDays` is **null** until the first successful fetch, because a confident zero shown to someone thirty days into a run is the worst thing this feature could do.
+- **Every other stats figure is counted from the cache on each read**, not snapshotted. `dueToday` has to fall as the user answers cards, and the cache is the more current source anyway — it holds cards written and retired here that the server has not been told about. `review_tally` counts reviews per day because the outbox is emptied by syncing and `lastReviewedAt` undercounts a card answered twice in a day.
 
 ### The sync
 
@@ -175,6 +176,7 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 - **The marker comes down by comparison, not by id.** `clearPendingIfUnchanged` matches on the content that was sent, so an edit the user makes while the request is in flight leaves the marker up and is sent on the next run. Clearing it outright loses that edit silently, since the row then looks synced.
 - **A server answer is written narrowly, never as a whole row.** A create's echo and a review's answer both return the entire card, but the only parts this client did not already have are the id and the schedule — `recordCreated` and `recordSchedule` write exactly those. Writing the rest back undoes an edit or an archive that has not been sent, along with the marker saying it still needs to be.
 - **Conflicts are last-writer-wins, deliberately.** An edit sent from here overwrites whatever the server holds; there is no `If-Match` in the contract to do better. Documented under [Retrying safely](docs/api-contract.md) rather than half-solved.
+- **`GET /stats` is fetched last in the pull and its failure is swallowed.** Topics and cards are the app; the streak is decoration on one screen, and letting a hiccup fetching it turn a completed pull into a failed one would have the worker retry everything it had just finished.
 - `FlashcardsApp` puts the schedule back at every process start, because a process is often started by something other than a person opening the app. **`SyncScheduler.syncNow` has no caller yet** — `ReviewRepository` has no `Context` and should not grow one, so the UI wires it after `record()` returns.
 
 ### The remote layer

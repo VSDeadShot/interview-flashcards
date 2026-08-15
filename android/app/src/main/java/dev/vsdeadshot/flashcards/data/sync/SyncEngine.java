@@ -5,13 +5,16 @@ import dev.vsdeadshot.flashcards.data.Mappers;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.local.PendingReviewEntity;
+import dev.vsdeadshot.flashcards.data.local.StatsSnapshotEntity;
 import dev.vsdeadshot.flashcards.data.remote.ApiException;
 import dev.vsdeadshot.flashcards.data.remote.ApiException.Disposition;
 import dev.vsdeadshot.flashcards.data.remote.FlashcardsApi;
 import dev.vsdeadshot.flashcards.data.remote.dto.CardDto;
+import dev.vsdeadshot.flashcards.data.remote.dto.StatsDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.TopicDto;
 import dev.vsdeadshot.flashcards.data.sync.SyncResult.Outcome;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -44,10 +47,16 @@ public final class SyncEngine {
 
     private final FlashcardsApi api;
     private final FlashcardsDatabase db;
+    private final Clock clock;
 
     public SyncEngine(FlashcardsApi api, FlashcardsDatabase db) {
+        this(api, db, Clock.systemDefaultZone());
+    }
+
+    public SyncEngine(FlashcardsApi api, FlashcardsDatabase db, Clock clock) {
         this.api = api;
         this.db = db;
+        this.clock = clock;
     }
 
     public SyncResult sync() {
@@ -317,7 +326,29 @@ public final class SyncEngine {
             written[0] = writeTopics(topics);
             written[1] = writeCards(cards);
         });
+        refreshStreak();
         return new Pull(written[0], written[1]);
+    }
+
+    /**
+     * Asks for the one figure this client cannot count for itself.
+     *
+     * <p>Last, and its failure is not the pull's failure. Topics and cards are the app; the
+     * streak is decoration on one screen, and letting a hiccup fetching it turn a completed pull
+     * into a failed one would have the worker retry everything it had just finished doing. The
+     * previous answer stays, and the "as of" beside it gets older, which is what an "as of" is
+     * for.
+     */
+    private void refreshStreak() {
+        try {
+            StatsDto stats = execute(api.stats());
+            StatsSnapshotEntity snapshot = new StatsSnapshotEntity();
+            snapshot.currentStreakDays = stats.currentStreakDays;
+            snapshot.fetchedAt = clock.instant();
+            db.stats().saveSnapshot(snapshot);
+        } catch (IOException failure) {
+            Log.w(TAG, "Streak not refreshed: " + failure.getMessage());
+        }
     }
 
     private int writeTopics(List<TopicDto> dtos) {

@@ -129,6 +129,9 @@ public class SyncEngineUpdateTest {
                 if (request.getTarget().startsWith("/api/v1/topics")) {
                     return json(200, "[" + TOPIC + "]");
                 }
+                if (request.getTarget().startsWith("/api/v1/stats")) {
+                    return json(200, STATS);
+                }
                 return json(200, "[" + serverCard(7L, "first", "back", false) + "]");
             }
         });
@@ -270,6 +273,11 @@ public class SyncEngineUpdateTest {
                 .build();
     }
 
+    /** The pull asks for the streak last; every run below answers it so nothing is left waiting. */
+    private static final String STATS = """
+            {"totalCards": 1, "dueToday": 0, "reviewedToday": 0, "currentStreakDays": 3,
+             "byTopic": []}""";
+
     private void respond(int code, String body) {
         server.enqueue(json(code, body));
     }
@@ -285,6 +293,7 @@ public class SyncEngineUpdateTest {
     private void respondToPullListing(String... listed) {
         respond(200, "[" + TOPIC + "]");
         respond(200, "[" + String.join(",", listed) + "]");
+        respond(200, STATS);
     }
 
     private static String serverCard(long id, String front, String back, boolean archived) {

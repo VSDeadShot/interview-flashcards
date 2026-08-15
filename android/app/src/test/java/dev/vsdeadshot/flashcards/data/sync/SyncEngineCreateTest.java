@@ -312,6 +312,11 @@ public class SyncEngineCreateTest {
             {"id": 1, "name": "Operating Systems", "slug": "operating-systems",
              "createdAt": "2026-01-01T00:00:00Z"}""";
 
+    /** The pull asks for the streak last; every run below answers it so nothing is left waiting. */
+    private static final String STATS = """
+            {"totalCards": 1, "dueToday": 0, "reviewedToday": 0, "currentStreakDays": 3,
+             "byTopic": []}""";
+
     private void respond(int code, String body) {
         server.enqueue(new MockResponse.Builder()
                 .code(code)
@@ -332,6 +337,7 @@ public class SyncEngineCreateTest {
     private void respondToPullListing(String... cards) {
         respond(200, "[" + TOPIC + "]");
         respond(200, "[" + String.join(",", cards) + "]");
+        respond(200, STATS);
     }
 
     /** The pull for a run whose card never reached the server, so the server lists none. */

@@ -21,11 +21,19 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
  * that a review happened. Neither can a {@code card} row with no {@code serverId}: that is a
  * card written on this device that no sync has created yet, and nothing can reconstruct it.
  * So a schema change may take the destructive path for {@code topic} alone — and the outbox is
- * written before the card it belongs to is touched.
+ * written before the card it belongs to is touched. {@code stats_snapshot} is a cache of one
+ * number; {@code review_tally} is not reconstructable, but losing it only resets a counter that
+ * resets at midnight anyway.
  */
 @Database(
-        entities = {TopicEntity.class, CardEntity.class, PendingReviewEntity.class},
-        version = 4,
+        entities = {
+            TopicEntity.class,
+            CardEntity.class,
+            PendingReviewEntity.class,
+            StatsSnapshotEntity.class,
+            ReviewTallyEntity.class
+        },
+        version = 5,
         exportSchema = true)
 @TypeConverters(Converters.class)
 public abstract class FlashcardsDatabase extends RoomDatabase {
@@ -35,6 +43,8 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
     public abstract CardDao cards();
 
     public abstract PendingReviewDao pendingReviews();
+
+    public abstract StatsDao stats();
 
     /**
      * Adds the local id and the create key.
@@ -81,6 +91,25 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
         }
     };
 
+    /**
+     * Adds the streak snapshot and the local review tally.
+     *
+     * <p>The statements are copied from the schema Room generated rather than written by hand:
+     * Room compares the migrated tables against its own expectation column by column, and a
+     * hand-written {@code create table} that differs in any of them fails at open time on a real
+     * device rather than here.
+     */
+    static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `stats_snapshot` (`id` INTEGER NOT NULL,"
+                    + " `currentStreakDays` INTEGER NOT NULL, `fetchedAt` INTEGER,"
+                    + " PRIMARY KEY(`id`))");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `review_tally` (`day` INTEGER NOT NULL,"
+                    + " `reviews` INTEGER NOT NULL, PRIMARY KEY(`day`))");
+        }
+    };
+
     private static volatile FlashcardsDatabase instance;
 
     public static FlashcardsDatabase get(Context context) {
@@ -94,7 +123,7 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
                             // No destructive fallback. An unsynced card lives in this file and
                             // nowhere else, so a missing migration must fail loudly rather than
                             // quietly discard what the user wrote.
-                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                             .build();
                 }
             }
