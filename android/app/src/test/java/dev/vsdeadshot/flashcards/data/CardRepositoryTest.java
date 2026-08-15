@@ -122,14 +122,7 @@ public class CardRepositoryTest {
      */
     @Test
     public void aLocalIdCannotCollideWithACardTheServerSends() {
-        CardEntity pulled = new CardEntity();
-        pulled.id = 1L;
-        pulled.serverId = 1L;
-        pulled.topicId = 1L;
-        pulled.front = "from the server";
-        pulled.back = "back";
-        pulled.dueDate = TODAY;
-        db.cards().upsertAll(List.of(pulled));
+        cachePulledCard(1L);
 
         CardEntity written = repository.create(1L, "written here", "back");
 
@@ -175,26 +168,49 @@ public class CardRepositoryTest {
                 written.clientCardId, db.cards().findById(written.id).clientCardId);
     }
 
+    @Test
+    public void editingACardTheServerHasMarksItAsNeedingToBeSent() {
+        cachePulledCard(1L);
+
+        repository.edit(1L, 1L, "changed", "back");
+
+        CardEntity edited = db.cards().findById(1L);
+        assertEquals("changed", edited.front);
+        assertNotNull("the row now differs from the server's copy, and says so",
+                edited.pendingSince);
+    }
+
     /**
-     * Nothing sends an edit to the server yet, so the next pull would overwrite the row with the
-     * server's copy and the change would vanish. Refusing says that; writing it would not.
+     * Marked whether or not the server has the card. For one still waiting to be created the
+     * marker is redundant — the create carries the new text anyway — but being unconditional is
+     * what makes an edit landing mid-create safe, since the create only takes the marker down if
+     * the row still holds what it sent.
      */
     @Test
-    public void aCardTheServerAlreadyHasCannotBeEditedYet() {
-        CardEntity pulled = new CardEntity();
-        pulled.id = 1L;
-        pulled.serverId = 1L;
-        pulled.topicId = 1L;
-        pulled.front = "from the server";
-        pulled.back = "back";
-        pulled.dueDate = TODAY;
-        db.cards().upsertAll(List.of(pulled));
+    public void editingACardTheServerHasNeverSeenMarksItTheSameWay() {
+        CardEntity written = repository.create(1L, "typo", "back");
 
-        assertThrows(IllegalArgumentException.class,
-                () -> repository.edit(1L, 1L, "changed", "back"));
+        repository.edit(written.id, 1L, "fixed", "back");
 
-        assertEquals("and the row is left as the server has it",
-                "from the server", db.cards().findById(1L).front);
+        assertNotNull("marked the same way regardless",
+                db.cards().findById(written.id).pendingSince);
+    }
+
+    @Test
+    public void archivingACardTheServerHasMarksItRatherThanRemovingIt() {
+        cachePulledCard(1L);
+
+        repository.archive(1L);
+
+        CardEntity archived = db.cards().findById(1L);
+        assertNotNull("the row stays — the server archives too, so history survives", archived);
+        assertTrue(archived.archived);
+        assertNotNull("and the delete still has to be sent", archived.pendingSince);
+    }
+
+    @Test
+    public void aCardThatIsNotCachedCannotBeArchived() {
+        assertThrows(IllegalArgumentException.class, () -> repository.archive(-99L));
     }
 
     @Test
@@ -217,6 +233,18 @@ public class CardRepositoryTest {
         assertThrows(IllegalArgumentException.class, () -> repository.create(1L, "front", null));
 
         assertTrue(db.cards().findAllActive().isEmpty());
+    }
+
+    /** A card as a pull would have left it: the server's id in both places, nothing unsent. */
+    private void cachePulledCard(long id) {
+        CardEntity pulled = new CardEntity();
+        pulled.id = id;
+        pulled.serverId = id;
+        pulled.topicId = 1L;
+        pulled.front = "from the server";
+        pulled.back = "back";
+        pulled.dueDate = TODAY;
+        db.cards().upsertAll(List.of(pulled));
     }
 
     private void cacheTopic(long id) {

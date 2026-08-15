@@ -4,6 +4,7 @@ import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.scheduler.SchedulingState;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
@@ -70,30 +71,27 @@ public final class CardRepository {
     }
 
     /**
-     * Replaces the text and the topic of a card the server has not created yet. The schedule is
-     * untouched, exactly as on the server — correcting a typo must not reset a card's progress.
+     * Replaces the text and the topic. The schedule is untouched, exactly as on the server —
+     * correcting a typo must not reset a card's progress.
+     *
+     * <p>Marks the row as differing from the server's copy, whether or not the server has one
+     * yet. For a card still waiting to be created the marker is redundant, since the create will
+     * carry the new text anyway — and it costs nothing, because a create that goes out with this
+     * content clears the marker on the way past. Being unconditional is what makes an edit landing
+     * mid-create safe: the create clears the marker only if the row still holds what it sent.
      *
      * <p>Editing also clears a {@code syncError}, which is the whole recovery path for a card
      * the server refused: it says why, the user fixes it, and the card is offered again.
-     *
-     * <p><strong>A card that already has a {@code serverId} is refused</strong>, because nothing
-     * yet sends an edit to the server and the next pull would overwrite the row with the server's
-     * copy — so the change would be silently reverted rather than saved. Refusing says that;
-     * writing it would not.
      */
     public CardEntity edit(long localId, long topicId, String front, String back) {
         String question = require(front, "front");
         String answer = require(back, "back");
+        Instant editedAt = clock.instant();
 
         return db.runInTransaction(() -> {
             CardEntity card = db.cards().findById(localId);
             if (card == null) {
                 throw new IllegalArgumentException("No cached card with id " + localId);
-            }
-            if (card.serverId != null) {
-                throw new IllegalArgumentException(
-                        "Card " + localId + " exists on the server and editing it is not"
-                                + " synced yet; the next pull would revert the change");
             }
             if (db.topics().findById(topicId) == null) {
                 throw new IllegalArgumentException("No cached topic with id " + topicId);
@@ -102,8 +100,38 @@ public final class CardRepository {
             card.front = question;
             card.back = answer;
             card.syncError = null;
+            card.pendingSince = editedAt;
             db.cards().update(card);
             return card;
+        });
+    }
+
+    /**
+     * Retires a card. The server archives rather than deleting, so history survives there, and
+     * this marks the row the same way and lets the sync send the {@code DELETE}.
+     *
+     * <p>A card the server was never told about is the exception: there is nothing to tell it, so
+     * the row goes outright. Its queued reviews go with it — they name a card that will never
+     * exist on the server, so they could never be sent, and left behind they would be counted as
+     * outstanding work on every run from then on.
+     */
+    public void archive(long localId) {
+        Instant archivedAt = clock.instant();
+
+        db.runInTransaction(() -> {
+            CardEntity card = db.cards().findById(localId);
+            if (card == null) {
+                throw new IllegalArgumentException("No cached card with id " + localId);
+            }
+            if (card.serverId == null) {
+                db.pendingReviews().deleteForCard(localId);
+                db.cards().deleteById(localId);
+                return;
+            }
+            card.archived = true;
+            card.syncError = null;
+            card.pendingSince = archivedAt;
+            db.cards().update(card);
         });
     }
 

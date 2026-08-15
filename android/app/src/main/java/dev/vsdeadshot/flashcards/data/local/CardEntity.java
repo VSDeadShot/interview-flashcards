@@ -71,6 +71,19 @@ public class CardEntity {
     public UUID clientCardId;
 
     /**
+     * When this row started differing from the server's copy, or null when it does not.
+     *
+     * <p>An edit and an archive are both states rather than events — only the latest content
+     * matters and {@code PUT} replaces — so a marker on the row is the whole record, and there is
+     * no second place to disagree with it. Which request it means is read off the row: an
+     * archived card is a {@code DELETE}, any other is a {@code PUT}.
+     *
+     * <p>A timestamp rather than a flag so a screen can say how long something has been waiting,
+     * and so the column is nullable and needs no default to migrate.
+     */
+    public Instant pendingSince;
+
+    /**
      * Why the server refused to create this card, or null. Set only for a refusal that will
      * repeat — a topic that does not exist there, a side longer than the column allows — which
      * is why a card carrying one is not sent again. It is not deleted either: this row is the

@@ -85,6 +85,7 @@ public class FlashcardsDatabaseMigrationTest {
         assertNull("nothing was written here, so there is no create key", card.clientCardId);
         assertNull("and nothing has been refused, the card having never been offered",
                 card.syncError);
+        assertNull("nor does it differ from the server's copy", card.pendingSince);
         assertEquals("and the rest of the row came across intact", "What is a deadlock?",
                 card.front);
         assertEquals(6, card.intervalDays);
@@ -108,7 +109,8 @@ public class FlashcardsDatabaseMigrationTest {
     /** Every migration, in order — Room runs the whole chain from whatever version it finds. */
     private FlashcardsDatabase openAtCurrentVersion() {
         return Room.databaseBuilder(context, FlashcardsDatabase.class, NAME)
-                .addMigrations(FlashcardsDatabase.MIGRATION_1_2, FlashcardsDatabase.MIGRATION_2_3)
+                .addMigrations(FlashcardsDatabase.MIGRATION_1_2, FlashcardsDatabase.MIGRATION_2_3,
+                        FlashcardsDatabase.MIGRATION_3_4)
                 .allowMainThreadQueries()
                 .build();
     }

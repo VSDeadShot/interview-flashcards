@@ -45,6 +45,7 @@ public final class SyncWorker extends Worker {
         SyncResult result = engine.sync();
         Log.i(TAG, "Sync " + result.outcome()
                 + ": created " + result.created()
+                + ", updated " + result.updated()
                 + ", pushed " + result.pushed()
                 + ", dropped " + result.dropped()
                 + ", stalled " + result.stalled()

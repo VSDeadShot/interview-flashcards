@@ -29,6 +29,16 @@ public interface PendingReviewDao {
     @Delete
     void delete(PendingReviewEntity review);
 
+    /**
+     * Discards a card's queued reviews along with the card.
+     *
+     * <p>Only for a card the server was never told about. Its reviews name a card that will never
+     * exist there, so they can never be sent — and left behind they would be counted as
+     * outstanding on every run for the rest of this database's life.
+     */
+    @Query("delete from pending_review where cardId = :cardId")
+    void deleteForCard(long cardId);
+
     /** Records a failed attempt, so a queue that is stuck can say why rather than just retrying. */
     @Query("update pending_review set attempts = attempts + 1, lastError = :detail where id = :id")
     void recordFailure(long id, String detail);

@@ -69,6 +69,16 @@ public final class Mappers {
         return new CardRequestDto(card.topicId, card.front, card.back, card.clientCardId);
     }
 
+    /**
+     * The body of the update for a card whose local copy has moved on.
+     *
+     * <p>No key: {@code PUT} replaces, so it is already safe to repeat, and the contract says
+     * clients should not send one.
+     */
+    public static CardRequestDto toUpdateRequest(CardEntity card) {
+        return new CardRequestDto(card.topicId, card.front, card.back, null);
+    }
+
     public static TopicEntity toEntity(TopicDto dto) {
         TopicEntity entity = new TopicEntity();
         entity.id = dto.id;

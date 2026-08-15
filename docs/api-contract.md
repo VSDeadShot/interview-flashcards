@@ -187,6 +187,14 @@ or later than it should forever after.
 `PUT` and `DELETE` take no key and need none — `PUT` replaces, and `DELETE` archives and answers
 `204` however many times it arrives. Clients should not send one.
 
+**The flip side of `PUT` replacing is that the last writer wins, silently.** There is no `ETag`
+or `If-Match`: a client that edited offline overwrites whatever the server holds, including a
+change made from somewhere else in the meantime, and nothing in the response says so. This is a
+**documented limitation for the single-user case**, where two clients editing one card between
+syncs is close to unreachable, and not a claim that the conflict is impossible. Solving it means
+a version on `card`, an `If-Match` header, and a `412` — worth doing when a second user exists,
+and not before.
+
 **The key is minted per queued operation, not per attempt.** Every retry of one operation carries
 the same key. It is a UUID rather than anything derived from the payload, because two reviews of
 one card at the same confidence — or two identical cards — are things a user may legitimately

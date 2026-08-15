@@ -68,8 +68,8 @@ public final class SyncEngine {
 
     private static SyncResult result(Outcome outcome, Push push, int topics, int cards) {
         return new SyncResult(
-                outcome, push.created, push.pushed, push.dropped, push.stalled, push.blocked,
-                topics, cards);
+                outcome, push.created, push.updated, push.pushed, push.dropped, push.stalled,
+                push.blocked, topics, cards);
     }
 
     private Push push() {
@@ -79,25 +79,77 @@ public final class SyncEngine {
             // outstanding is stalled rather than blocked: a rejected key is not a card the
             // server has an opinion about, and the distinction only matters for work a retry
             // cannot fix on its own.
-            return new Push(creates.created, 0, 0, outstanding(), 0, true);
+            return new Push(creates.created, 0, 0, 0, outstanding(), 0, true);
         }
         Reviews reviews = pushReviews();
         if (reviews.stopped) {
-            return new Push(creates.created, reviews.pushed, reviews.dropped, outstanding(), 0,
+            return new Push(creates.created, 0, reviews.pushed, reviews.dropped, outstanding(), 0,
                     true);
+        }
+        // Last, so a card is never retired before the reviews that happened while it was still
+        // in use have been recorded.
+        Updates updates = pushUpdates();
+        if (updates.stopped) {
+            return new Push(creates.created, updates.updated, reviews.pushed, reviews.dropped,
+                    outstanding(), 0, true);
         }
         return new Push(
                 creates.created,
+                updates.updated,
                 reviews.pushed,
                 reviews.dropped,
-                creates.stalled + reviews.stalled,
-                creates.blocked + reviews.blocked,
+                creates.stalled + reviews.stalled + updates.stalled,
+                creates.blocked + reviews.blocked + updates.blocked,
                 false);
+    }
+
+    /**
+     * Sends the rows whose local copy differs from the server's — an edit as a {@code PUT}, an
+     * archived card as a {@code DELETE}.
+     *
+     * <p>Independent of one another like creates, so a failure moves on to the next card. What
+     * this deliberately does not do is reconcile: if the server's copy also changed, this
+     * overwrites it. With one user that is nearly unreachable, and the contract offers no
+     * {@code If-Match} to do better — the limitation is written down rather than guessed at.
+     */
+    private Updates pushUpdates() {
+        int updated = 0;
+        int stalled = 0;
+        int blocked = 0;
+
+        for (CardEntity card : db.cards().pendingSyncs()) {
+            try {
+                if (card.archived) {
+                    executeWithNoAnswer(api.archiveCard(card.serverId));
+                } else {
+                    execute(api.updateCard(card.serverId, Mappers.toUpdateRequest(card)));
+                }
+                db.cards().clearPendingIfUnchanged(
+                        card.id, card.front, card.back, card.topicId);
+                updated++;
+            } catch (IOException failure) {
+                Disposition disposition = ApiException.dispositionOf(failure);
+                if (disposition == Disposition.STOP) {
+                    return new Updates(updated, 0, 0, true);
+                }
+                if (disposition == Disposition.RETRY) {
+                    stalled++;
+                    continue;
+                }
+                Log.w(TAG, "Parking update to card " + card.id + " (server "
+                        + card.serverId + "): " + failure.getMessage());
+                db.cards().recordSyncFailure(card.id, failure.getMessage());
+                blocked++;
+            }
+        }
+        return new Updates(updated, stalled, blocked, false);
     }
 
     /** Everything still waiting to go, ignoring what has been parked. */
     private int outstanding() {
-        return db.cards().pendingCreateCount() + db.pendingReviews().size();
+        return db.cards().pendingCreateCount()
+                + db.cards().pendingSyncs().size()
+                + db.pendingReviews().size();
     }
 
     /**
@@ -121,12 +173,16 @@ public final class SyncEngine {
         for (CardEntity card : db.cards().pendingCreates()) {
             try {
                 CardDto answer = execute(api.createCard(Mappers.toCreateRequest(card)));
-                // The server's row, under this device's id. The local id never moves — every
-                // queued review points at it, and rewriting it is what this whole scheme exists
-                // to avoid.
-                CardEntity confirmed = Mappers.toEntity(answer);
-                confirmed.id = card.id;
-                db.cards().update(confirmed);
+                // Only what the server is actually the authority on. The echo's text is what
+                // this client sent a moment ago, so writing the whole row back would gain
+                // nothing and would overwrite an edit made while the request was in flight.
+                // The local id never moves either — every queued review points at it.
+                db.cards().recordCreated(card.id, answer.id, answer.easeFactor,
+                        answer.intervalDays, answer.repetitions, answer.lapses, answer.dueDate,
+                        answer.lastReviewedAt);
+                // And the card is only clean if it still holds what went out; an edit that
+                // landed mid-flight leaves the marker up and is sent as an ordinary update.
+                db.cards().clearPendingIfUnchanged(card.id, card.front, card.back, card.topicId);
                 created++;
             } catch (IOException failure) {
                 Disposition disposition = ApiException.dispositionOf(failure);
@@ -219,9 +275,12 @@ public final class SyncEngine {
             // reason. If every row was dropped there is no answer to write, and the card is now
             // absent from cardIdsAwaitingSync() — so the pull below repairs it.
             if (drained && confirmed != null) {
-                CardEntity updated = Mappers.toEntity(confirmed);
-                updated.id = localCardId;
-                db.cards().upsertAll(List.of(updated));
+                // The schedule only. The rest of the answer is what this client already had,
+                // and writing it back would undo an edit or an archive that has not gone yet —
+                // along with the marker that says it still has to.
+                db.cards().recordSchedule(localCardId, confirmed.easeFactor,
+                        confirmed.intervalDays, confirmed.repetitions, confirmed.lapses,
+                        confirmed.dueDate, confirmed.lastReviewedAt);
             }
         }
         return new Reviews(pushed, dropped, stalled, blocked, false);
@@ -288,8 +347,9 @@ public final class SyncEngine {
         // prediction the user is looking at and putting the card back in today's queue.
         //
         // These are local ids, which is why the check below is against the resolved row and not
-        // against the id the server sent.
-        Set<Long> awaitingSync = new HashSet<>(db.pendingReviews().cardIdsAwaitingSync());
+        // against the id the server sent. One query for every kind of unsent work rather than
+        // one per kind, so the next thing that must not be overwritten is added in one place.
+        Set<Long> awaitingSync = new HashSet<>(db.cards().localIdsWithUnsentWork());
 
         List<CardEntity> toWrite = new ArrayList<>(dtos.size());
         List<Long> serverIds = new ArrayList<>(dtos.size());
@@ -341,6 +401,15 @@ public final class SyncEngine {
      * into an {@link ApiException}, so there is no unsuccessful response to test for here — only
      * a success with nothing in it, which is a malformed answer rather than a value to use.
      */
+    /**
+     * A call whose success has no body. {@code DELETE} answers {@code 204}, so the body is null
+     * on the path that worked — running it through {@link #execute} would report every archive
+     * the server accepted as a failure worth retrying.
+     */
+    private static void executeWithNoAnswer(Call<Void> call) throws IOException {
+        call.execute();
+    }
+
     private static <T> T execute(Call<T> call) throws IOException {
         Response<T> response = call.execute();
         T body = response.body();
@@ -351,7 +420,11 @@ public final class SyncEngine {
     }
 
     private record Push(
-            int created, int pushed, int dropped, int stalled, int blocked, boolean stopped) {
+            int created, int updated, int pushed, int dropped, int stalled, int blocked,
+            boolean stopped) {
+    }
+
+    private record Updates(int updated, int stalled, int blocked, boolean stopped) {
     }
 
     private record Creates(int created, int stalled, int blocked, boolean stopped) {

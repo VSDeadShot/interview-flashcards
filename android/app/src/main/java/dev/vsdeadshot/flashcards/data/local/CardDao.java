@@ -5,6 +5,7 @@ import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 import androidx.room.Update;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -91,6 +92,78 @@ public interface CardDao {
     /** Parks a card the server will refuse again, with the reason it gave. */
     @Query("update card set syncError = :detail where id = :id")
     void recordSyncFailure(long id, String detail);
+
+    /**
+     * Records what the server said about a card it has just created, without touching a single
+     * field the user can type into.
+     *
+     * <p>The echo carries no content this client did not send a moment ago, so writing the whole
+     * row back would only make it possible to lose an edit made while the request was in flight.
+     * What is genuinely the server's to say is the id and the schedule.
+     */
+    @Query("""
+            update card set serverId = :serverId, easeFactor = :easeFactor,
+                intervalDays = :intervalDays, repetitions = :repetitions, lapses = :lapses,
+                dueDate = :dueDate, lastReviewedAt = :lastReviewedAt, syncError = null
+            where id = :id
+            """)
+    void recordCreated(long id, long serverId, double easeFactor, int intervalDays,
+            int repetitions, int lapses, LocalDate dueDate, Instant lastReviewedAt);
+
+    /**
+     * Writes back the schedule a review produced, and nothing else.
+     *
+     * <p>Narrow for the same reason {@link #recordCreated} is. A review's answer is the whole
+     * card, but the only part of it this client did not already know is the schedule — and
+     * writing the rest back would undo an edit or an archive the user has made and the sync has
+     * not sent yet, along with the marker saying it still needs sending.
+     */
+    @Query("""
+            update card set easeFactor = :easeFactor, intervalDays = :intervalDays,
+                repetitions = :repetitions, lapses = :lapses, dueDate = :dueDate,
+                lastReviewedAt = :lastReviewedAt
+            where id = :id
+            """)
+    void recordSchedule(long id, double easeFactor, int intervalDays, int repetitions,
+            int lapses, LocalDate dueDate, Instant lastReviewedAt);
+
+    /**
+     * Rows the server has, whose local copy differs from it. An archived one means a
+     * {@code DELETE} and any other a {@code PUT}; a card carrying a {@code syncError} is left out
+     * for the same reason a refused create is.
+     */
+    @Query("""
+            select * from card
+            where pendingSince is not null and serverId is not null and syncError is null
+            order by pendingSince asc, id asc
+            """)
+    List<CardEntity> pendingSyncs();
+
+    /**
+     * Clears the marker, but only if the row still holds what was sent.
+     *
+     * <p>The comparison is the point. A plain clear would drop the marker on content the user
+     * changed while the request was in flight, and that edit would then never be sent — the
+     * failure being silent, since the row looks synced. Unmatched here, the marker stays and the
+     * next run sends again.
+     */
+    @Query("""
+            update card set pendingSince = null
+            where id = :id and front = :front and back = :back and topicId = :topicId
+            """)
+    void clearPendingIfUnchanged(long id, String front, String back, long topicId);
+
+    /** Local ids whose row must not be overwritten by a pull, whatever kind of work is unsent. */
+    @Query("""
+            select cardId from pending_review
+            union
+            select id from card where pendingSince is not null
+            """)
+    List<Long> localIdsWithUnsentWork();
+
+    /** For a card the server was never told about, which therefore needs no telling. */
+    @Query("delete from card where id = :id")
+    void deleteById(long id);
 
     @Query("select * from card where archived = 0 order by id asc")
     List<CardEntity> findAllActive();

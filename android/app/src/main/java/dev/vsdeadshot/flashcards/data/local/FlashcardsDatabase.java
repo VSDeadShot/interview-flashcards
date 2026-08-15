@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
  */
 @Database(
         entities = {TopicEntity.class, CardEntity.class, PendingReviewEntity.class},
-        version = 3,
+        version = 4,
         exportSchema = true)
 @TypeConverters(Converters.class)
 public abstract class FlashcardsDatabase extends RoomDatabase {
@@ -69,6 +69,18 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
         }
     };
 
+    /**
+     * Adds the marker for a row that differs from the server's copy. Nullable, so this is one
+     * {@code alter table} — a non-null flag would need a default here and a matching
+     * {@code @ColumnInfo(defaultValue = ...)} on the entity, or Room rejects the migrated table.
+     */
+    static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("alter table card add column pendingSince INTEGER");
+        }
+    };
+
     private static volatile FlashcardsDatabase instance;
 
     public static FlashcardsDatabase get(Context context) {
@@ -82,7 +94,7 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
                             // No destructive fallback. An unsynced card lives in this file and
                             // nowhere else, so a missing migration must fail loudly rather than
                             // quietly discard what the user wrote.
-                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                             .build();
                 }
             }

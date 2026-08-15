@@ -10,6 +10,9 @@ package dev.vsdeadshot.flashcards.data.sync;
  *
  * @param outcome how far the run got
  * @param created cards written on this device that the server has now made
+ * @param updated cards whose local change the server has now taken — an edit or an archive,
+ *     counted together because they are one loop answering one question: is this row still
+ *     different from the server's?
  * @param pushed reviews the server accepted and that are now gone from the outbox
  * @param dropped reviews the server will never accept, discarded so they stop blocking the card
  *     behind them
@@ -24,6 +27,7 @@ package dev.vsdeadshot.flashcards.data.sync;
 public record SyncResult(
         Outcome outcome,
         int created,
+        int updated,
         int pushed,
         int dropped,
         int stalled,
