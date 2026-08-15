@@ -121,6 +121,8 @@ public class SyncEngineTest {
     private void cacheCardWithPrediction(long id) {
         CardEntity card = new CardEntity();
         card.id = id;
+        // A card the server already knows about, which is what a pull would have written.
+        card.serverId = id;
         card.topicId = 1L;
         card.front = "What is a deadlock?";
         card.back = "Four Coffman conditions";

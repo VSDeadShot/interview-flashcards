@@ -65,6 +65,7 @@ public class ReviewRepositoryTest {
     private void cacheCard(long id) {
         CardEntity card = new CardEntity();
         card.id = id;
+        card.serverId = id;
         card.topicId = 1L;
         card.front = "What is a deadlock?";
         card.back = "Four Coffman conditions";

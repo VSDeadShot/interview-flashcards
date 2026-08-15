@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them and the schedule that runs it; what it does not have yet is card authoring offline, stats, or any UI at all.
+**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it and offline card authoring; what it does not have yet is a sync for those creates, stats, or any UI at all.
 
 ## Commands
 
@@ -147,7 +147,8 @@ The client runs it to *predict* a review's outcome offline. The prediction is re
 
 Everything on screen comes from Room. The network's job is to keep those tables current, not to answer a question a screen asked — which is what makes every screen work with the radio off.
 
-- **`topic` and `card` are a cache; `pending_review` is not.** The first two can be dropped and pulled again at any time. The outbox is the only record that a review happened, so a destructive schema migration may never apply to it, and it is written before the card it belongs to is touched.
+- **`topic` is a cache; `pending_review` and an unsynced `card` are not.** Topics can be dropped and pulled again at any time. The outbox is the only record that a review happened, and a `card` row with no `serverId` is the only copy of something the user wrote — so a destructive schema migration may apply to `topic` alone, the pull's deletes are scoped to rows that have a `serverId`, and the outbox is written before the card it belongs to is touched.
+- **`card.id` is local and never changes; `serverId` is what the sync matches on.** A card written offline has no server id, and if `id` later had to become one, every `pending_review.cardId` pointing at it would have to be rewritten — on the path that runs immediately after a network response, in the table that must never be corrupted. Cards from a pull are stored under the server's id because it is already a free local id, not because the two mean the same thing; local ids are minted downwards from zero, so the two can never collide.
 - **The outbox replays in `id` order, grouped by card**, and rows are deleted once the server answers. The server's ordering rule is per card — it refuses a review older than *that card's* last one — so a strict global order is stricter than the server asks for and would let one card the server keeps refusing hold up every review queued behind it. Grouped, a stuck card stalls only itself.
 - **A review the server will never accept is deleted, not marked dead.** The row is also what keeps its card out of every pull, so a row left behind freezes that card permanently — a lost answer is the cheaper of the two failures. The reason is logged and counted by the run instead.
 - A card is deliberately **not** flagged as dirty alongside an outbox row. Two places claiming to know whether a review is pending will eventually disagree, and then a card is either stuck out of the queue or synced twice. `PendingReviewDao.cardIdsAwaitingSync()` is the single answer, and a pull must not overwrite the cards it names.

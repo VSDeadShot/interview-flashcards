@@ -1,0 +1,228 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "e51b23ed8cbecb0c8063640568d5a44d",
+    "entities": [
+      {
+        "tableName": "topic",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `slug` TEXT NOT NULL, `createdAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slug",
+            "columnName": "slug",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "card",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `serverId` INTEGER, `clientCardId` TEXT, `topicId` INTEGER NOT NULL, `front` TEXT NOT NULL, `back` TEXT NOT NULL, `easeFactor` REAL NOT NULL, `intervalDays` INTEGER NOT NULL, `repetitions` INTEGER NOT NULL, `lapses` INTEGER NOT NULL, `dueDate` INTEGER, `lastReviewedAt` INTEGER, `archived` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "clientCardId",
+            "columnName": "clientCardId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "topicId",
+            "columnName": "topicId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "front",
+            "columnName": "front",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "back",
+            "columnName": "back",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "easeFactor",
+            "columnName": "easeFactor",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalDays",
+            "columnName": "intervalDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repetitions",
+            "columnName": "repetitions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lapses",
+            "columnName": "lapses",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dueDate",
+            "columnName": "dueDate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastReviewedAt",
+            "columnName": "lastReviewedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "archived",
+            "columnName": "archived",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_card_archived_dueDate_id",
+            "unique": false,
+            "columnNames": [
+              "archived",
+              "dueDate",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_card_archived_dueDate_id` ON `${TABLE_NAME}` (`archived`, `dueDate`, `id`)"
+          },
+          {
+            "name": "index_card_serverId",
+            "unique": true,
+            "columnNames": [
+              "serverId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_card_serverId` ON `${TABLE_NAME}` (`serverId`)"
+          },
+          {
+            "name": "index_card_clientCardId",
+            "unique": true,
+            "columnNames": [
+              "clientCardId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_card_clientCardId` ON `${TABLE_NAME}` (`clientCardId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "pending_review",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `cardId` INTEGER NOT NULL, `confidence` INTEGER NOT NULL, `reviewedAt` INTEGER, `clientReviewId` TEXT NOT NULL, `attempts` INTEGER NOT NULL, `lastError` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cardId",
+            "columnName": "cardId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reviewedAt",
+            "columnName": "reviewedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "clientReviewId",
+            "columnName": "clientReviewId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_pending_review_clientReviewId",
+            "unique": true,
+            "columnNames": [
+              "clientReviewId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_pending_review_clientReviewId` ON `${TABLE_NAME}` (`clientReviewId`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e51b23ed8cbecb0c8063640568d5a44d')"
+    ]
+  }
+}

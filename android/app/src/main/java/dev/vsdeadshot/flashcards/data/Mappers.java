@@ -24,7 +24,12 @@ public final class Mappers {
 
     public static CardEntity toEntity(CardDto dto) {
         CardEntity entity = new CardEntity();
+        // The server's id serves as the local id too for a card that arrived from a pull: it is
+        // already unique here and nothing else claims it. serverId is what the sync matches on,
+        // and setting it is what marks this row as a cache of something rather than the only
+        // copy of it.
         entity.id = dto.id;
+        entity.serverId = dto.id;
         entity.topicId = dto.topicId;
         entity.front = dto.front;
         entity.back = dto.back;

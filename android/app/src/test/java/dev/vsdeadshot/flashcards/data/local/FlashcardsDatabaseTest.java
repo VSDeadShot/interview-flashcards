@@ -57,6 +57,8 @@ public class FlashcardsDatabaseTest {
     private CardEntity card(long id, LocalDate dueDate, boolean archived) {
         CardEntity card = new CardEntity();
         card.id = id;
+        // These stand in for cards a pull wrote, which is what the delete queries are scoped to.
+        card.serverId = id;
         card.topicId = 1L;
         card.front = "front " + id;
         card.back = "back " + id;

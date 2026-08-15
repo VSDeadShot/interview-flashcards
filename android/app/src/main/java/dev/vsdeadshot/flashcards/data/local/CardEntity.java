@@ -9,6 +9,7 @@ import dev.vsdeadshot.flashcards.scheduler.Sm2Scheduler;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * A card, holding exactly what {@code CardResponse} carries and nothing invented locally.
@@ -17,6 +18,12 @@ import java.util.Objects;
  * {@code includeArchived=true} on purpose: a card that simply vanished from a listing would be
  * indistinguishable from one that was deleted, moved, or missed, and this flag is what tells
  * the difference.
+ *
+ * <p><strong>Not every row here is a cache.</strong> A card written on this device has no
+ * {@code serverId} until a sync has created it, and until then this row is the only copy of
+ * something the user typed. The pure-cache rule the rest of this database follows narrows to
+ * rows that have one — which is why the pull's deletes are scoped to those, and why a
+ * destructive migration may not be applied to this table.
  *
  * <p>The scheduling columns are written twice over: once by a pull, and once by the local
  * scheduler when a review is recorded offline. The second is a <em>prediction</em> — the
@@ -27,12 +34,41 @@ import java.util.Objects;
         tableName = "card",
         // Covers the only query the study screen makes. The partial index the server uses is
         // not available here, so archived is part of the key rather than a predicate on it.
-        indices = {@Index(value = {"archived", "dueDate", "id"})})
+        indices = {
+            @Index(value = {"archived", "dueDate", "id"}),
+            // Both nullable, and SQLite lets a unique index hold any number of nulls — which is
+            // what makes "many cards not yet on the server" and "many cards this device did not
+            // write" both legal.
+            @Index(value = {"serverId"}, unique = true),
+            @Index(value = {"clientCardId"}, unique = true)
+        })
 public class CardEntity {
 
-    /** The server's id. Slice 2 adds locally-created cards, which will need a local id too. */
+    /**
+     * Local, and fixed for the life of the row. It is deliberately not the server's id: a card
+     * written offline has no server id yet, and if this column later had to change to become
+     * one, every {@code pending_review.cardId} pointing here would have to be rewritten — on
+     * the path that runs immediately after a network response, in the one table that must
+     * never be corrupted. Cards that arrive from a pull are stored under the server's id
+     * because it is already a free local id, not because the two mean the same thing.
+     */
     @PrimaryKey
     public long id;
+
+    /**
+     * The server's id, or null for a card written here that no sync has created yet. This is
+     * what a pull matches on, so it is what decides whether a row is a cache of something or
+     * the only copy of it.
+     */
+    public Long serverId;
+
+    /**
+     * The key this device minted when it wrote the card, or null for a card that came from the
+     * server. Sent as {@code clientCardId} on the create and echoed back on every card the
+     * server returns, which is what lets a create whose response was lost be recognised in a
+     * later listing instead of appearing as a second card.
+     */
+    public UUID clientCardId;
 
     public long topicId;
 

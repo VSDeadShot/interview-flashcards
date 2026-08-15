@@ -177,7 +177,7 @@ public final class SyncEngine {
 
     private int writeCards(List<CardDto> dtos) {
         if (dtos.isEmpty()) {
-            db.cards().deleteAll();
+            db.cards().deleteAllFromServer();
             return 0;
         }
         // Read inside the transaction, not before the requests went out. A review enqueued
