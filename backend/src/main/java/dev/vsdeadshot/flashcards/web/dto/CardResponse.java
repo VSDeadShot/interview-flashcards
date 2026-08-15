@@ -3,6 +3,7 @@ package dev.vsdeadshot.flashcards.web.dto;
 import dev.vsdeadshot.flashcards.domain.Card;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 /**
  * A card as the API returns it, everywhere it is returned — listing, creating, updating, the
@@ -16,6 +17,14 @@ import java.time.LocalDate;
  * <p>The topic is flattened to {@code topicId} rather than nested. The client already has the
  * topic list, so nesting the row would send the same name back on every card, and reading it
  * here would mean touching a lazy association after the transaction has closed.
+ *
+ * <p>{@code clientCardId} is the caller's own key echoed back, and is null for most cards — any
+ * the server made directly, and any another client created. It is here rather than only on the
+ * create response because the create response is not where it is needed. A client whose create
+ * succeeded but whose response was lost still has the card queued locally, and the next listing
+ * returns that card under a server id it has never seen; without the key it cannot tell its own
+ * card from a new one and shows the user both. Every response uses this one shape, so echoing it
+ * here is what puts it on the listing.
  */
 public record CardResponse(
         Long id,
@@ -28,7 +37,8 @@ public record CardResponse(
         int lapses,
         LocalDate dueDate,
         Instant lastReviewedAt,
-        boolean archived) {
+        boolean archived,
+        UUID clientCardId) {
 
     public static CardResponse from(Card card) {
         return new CardResponse(
@@ -45,6 +55,7 @@ public record CardResponse(
                 card.getLapses(),
                 card.getDueDate(),
                 card.getLastReviewedAt(),
-                card.isArchived());
+                card.isArchived(),
+                card.getClientCardId());
     }
 }

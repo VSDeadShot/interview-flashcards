@@ -160,6 +160,9 @@ class CardControllerTest extends EmbeddedPostgresTest {
                     // Never reviewed, and the field is present rather than dropped so the client
                     // can tell "never" from "the server did not say".
                     .andExpect(jsonPath("$[0].lastReviewedAt").doesNotExist())
+                    // Null for a card the server made itself. Only a card a client created
+                    // under its own key carries one.
+                    .andExpect(jsonPath("$[0].clientCardId").doesNotExist())
                     .andExpect(jsonPath("$[0].userId").doesNotExist());
         }
     }
@@ -347,6 +350,37 @@ class CardControllerTest extends EmbeddedPostgresTest {
                     .andExpect(status().isCreated());
 
             mvc.perform(authorised(get(PATH))).andExpect(jsonPath("$.length()").value(2));
+        }
+
+        /**
+         * The reason the key is on the response at all. A create whose response was lost leaves
+         * the card queued locally and returns it from the next listing under a server id the
+         * client has never seen — so without the key on the listing, the client cannot tell its
+         * own card from a new one, and the user sees it twice.
+         */
+        @Test
+        @DisplayName("echoes the key on the card, in the listing as well as on the create")
+        void echoesTheKey() throws Exception {
+            UUID key = UUID.randomUUID();
+
+            mvc.perform(json(post(PATH), cardBodyWithKey(key)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.clientCardId").value(key.toString()));
+
+            mvc.perform(authorised(get(PATH)))
+                    .andExpect(jsonPath("$[0].clientCardId").value(key.toString()));
+        }
+
+        @Test
+        @DisplayName("echoes the same key on the replay")
+        void echoesTheKeyOnTheReplay() throws Exception {
+            UUID key = UUID.randomUUID();
+            mvc.perform(json(post(PATH), cardBodyWithKey(key)))
+                    .andExpect(status().isCreated());
+
+            mvc.perform(json(post(PATH), cardBodyWithKey(key)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.clientCardId").value(key.toString()));
         }
 
         @Test

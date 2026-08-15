@@ -202,6 +202,20 @@ repeated review answers `200` with the card **as it stands now** — if a later 
 between, that is the newer schedule, which is both the more useful answer and the only one
 available, since the log records intervals but not due dates.
 
+**`clientCardId` comes back on the card, in every response that returns one** — not only on the
+create. The create response is not where it is needed: a client that gets one already knows which
+of its own rows it asked about. The case that needs the key is the one where that response never
+arrived. The card exists on the server, it is still queued on the client, and the next `GET
+/cards` returns it under an id the client has never seen — indistinguishable from a card someone
+else made, so the client shows the user both. With the key on the listing the client recognises
+its own row and merges it.
+
+The key is therefore visible to every client of that user, not just the one that minted it.
+Nothing turns on it — the uniqueness is scoped `(user_id, client_card_id)`, and a client with no
+matching local row simply ignores it — but it is one client's bookkeeping appearing in another's
+listing, which is a deliberate trade rather than an oversight. `clientReviewId` is **not** echoed:
+reviews are not cached by the client and the same duplicate cannot arise.
+
 Two conflicts can come back, and a client must tell them apart, so the problem body carries a
 `retryable` field rather than expecting the title to be parsed:
 
@@ -330,7 +344,8 @@ alongside the account, applied where `LocalDate.now(clock)` is called today.
   "lapses": 0,
   "dueDate": "2026-08-03",
   "lastReviewedAt": "2026-07-28T19:40:00Z",  // null until the first review
-  "archived": false
+  "archived": false,
+  "clientCardId": "9f1c...."  // the creator's own key, echoed; null for most cards
 }
 
 // Topic
