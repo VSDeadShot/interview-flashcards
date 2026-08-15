@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler and its remote layer; what it does not have yet is the sync engine that drives them, or any UI at all.
+**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them and the schedule that runs it; what it does not have yet is card authoring offline, stats, or any UI at all.
 
 ## Commands
 
@@ -131,7 +131,7 @@ Consequences worth knowing:
 
 ## The Android client
 
-**Stack**: AGP 9.3.1, Gradle 9.5.1, `compileSdk`/`targetSdk` 36, `minSdk` 26, Java 17 bytecode, Room 2.8.4, Retrofit 3 on OkHttp 5 with Moshi 1.15.2, JUnit 4 with Robolectric 4.15.1. Two modules: `:app` and `:scheduler`.
+**Stack**: AGP 9.3.1, Gradle 9.5.1, `compileSdk`/`targetSdk` 36, `minSdk` 26, Java 17 bytecode, Room 2.8.4, Retrofit 3 on OkHttp 5 with Moshi 1.15.2, WorkManager 2.11.2, JUnit 4 with Robolectric 4.15.1. Two modules: `:app` and `:scheduler`.
 
 **There is no Compose here, and there cannot be.** Jetpack Compose is a Kotlin compiler plugin, so the Java-only rule rules it out — the UI is XML views. This is the one place that constraint costs something real, and it is worth knowing before reaching for a Compose answer to a layout problem.
 
@@ -148,10 +148,23 @@ The client runs it to *predict* a review's outcome offline. The prediction is re
 Everything on screen comes from Room. The network's job is to keep those tables current, not to answer a question a screen asked — which is what makes every screen work with the radio off.
 
 - **`topic` and `card` are a cache; `pending_review` is not.** The first two can be dropped and pulled again at any time. The outbox is the only record that a review happened, so a destructive schema migration may never apply to it, and it is written before the card it belongs to is touched.
-- **The outbox replays in `id` order and rows are deleted once the server answers.** The order matters: the server refuses a review older than that card's last one. Note the rule is *per card* — reviews of different cards are independent, so a strict global order is stricter than it needs to be and lets one stuck card block the rest.
+- **The outbox replays in `id` order, grouped by card**, and rows are deleted once the server answers. The server's ordering rule is per card — it refuses a review older than *that card's* last one — so a strict global order is stricter than the server asks for and would let one card the server keeps refusing hold up every review queued behind it. Grouped, a stuck card stalls only itself.
+- **A review the server will never accept is deleted, not marked dead.** The row is also what keeps its card out of every pull, so a row left behind freezes that card permanently — a lost answer is the cheaper of the two failures. The reason is logged and counted by the run instead.
 - A card is deliberately **not** flagged as dirty alongside an outbox row. Two places claiming to know whether a review is pending will eventually disagree, and then a card is either stuck out of the queue or synced twice. `PendingReviewDao.cardIdsAwaitingSync()` is the single answer, and a pull must not overwrite the cards it names.
 - The pull asks for `includeArchived=true`. A card that merely stopped appearing in a listing is indistinguishable from one that was archived, moved, or missed, and the flag is what tells them apart.
 - **Never show a locally computed streak.** The forgiving rule skips days on which nothing was due, which needs the whole review history and every card's due date as it stood on each of those days. Show the server's cached figure with an "as of" timestamp, or show nothing.
+
+### The sync
+
+`SyncEngine` reconciles the two halves: the outbox goes up, then everything comes back down. It knows nothing about threads or schedules — `sync()` blocks, and `SyncWorker` is what it blocks on behalf of.
+
+- **Push, then pull**, and not for tidiness. A pull run first would fetch the server's row for every card whose review is still queued — rows it is about to invalidate — and would leave a window where a card the user has already answered shows as due again.
+- **The server's answer is held back and written once per drained chain**, not once per accepted review. Writing each one as it lands steps the card through the schedules of the reviews accepted so far, so a chain that stalls half way would leave the card showing a state older than the prediction the user was just looking at. A chain with rows still queued is named by `cardIdsAwaitingSync()`, so the pull leaves that card alone for the same reason.
+- **`cardIdsAwaitingSync()` is read inside the write transaction**, not before the requests went out. A review enqueued while the network was busy would otherwise be missing from a list taken earlier, and its card would be overwritten by the server's row from before that review — losing the prediction on screen and putting the card back in today's queue. The ids of *every* card the server listed still go to `deleteMissing`, including the skipped ones; leaving them out would delete exactly the cards with unsent work.
+- **An empty answer from the server routes to `deleteAll()`.** Room expands an empty list to `not in ()`, which SQLite rejects outright, so the no-rows case cannot go through `deleteMissing` at all.
+- **Only `Result.retry()` means anything different to a periodic request.** WorkManager routes success *and* failure through the same `resetPeriodic()` for periodic work: the row returns to `ENQUEUED` for the next interval either way, and neither result's output data is stored. So the result answers one question — does this run want to come back before the period is up — and **a rejected key cannot reach the UI through `WorkInfo`**; surfacing it means persisting it somewhere the app reads.
+- **The two work requests use different unique names.** `enqueueUniqueWork` and `enqueueUniquePeriodicWork` share one table of names, so a one-shot enqueued under the periodic request's name would replace it rather than join it, and the recurring sync would be gone until the next process start. What two names give up is a guarantee the two never overlap; every review carries a `clientReviewId` and the pull decides which cards it may touch inside its own transaction, so an overlap costs an accurate tally and nothing else.
+- `FlashcardsApp` puts the schedule back at every process start, because a process is often started by something other than a person opening the app. **`SyncScheduler.syncNow` has no caller yet** — `ReviewRepository` has no `Context` and should not grow one, so the UI wires it after `record()` returns.
 
 ### The remote layer
 
@@ -170,6 +183,8 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 The remote and mapper tests deliberately **do not** use Robolectric. Nothing in them touches the Android framework, so keeping it out makes them faster and keeps that API-35 pin confined to the database tests. `FlashcardsApiTest` runs a real `MockWebServer` on a loopback port rather than stubbing the interface, so it exercises OkHttp, Retrofit and Moshi together.
 
 What a mock server cannot prove is that this client and Jackson agree on the wire format. They do, checked against the running backend in both directions: an `Instant` crosses as `Instant.toString()`, a `LocalDate` as `LocalDate.toString()`, a replayed `clientCardId` answers `200` with the original body, and a replayed `clientReviewId` does not apply SM-2 twice.
+
+**A Robolectric test needs `@Config(application = Application.class)`.** Robolectric does not create the app's content providers, so `androidx.startup` never initialises WorkManager and `FlashcardsApp.onCreate` throws — with a message accusing the manifest of disabling an initializer it does not disable. On a device that initializer is in the packaged manifest and runs ahead of `onCreate`, so this is a test-environment gap rather than a fault to fix in the app. It is not fixed by making the app a `Configuration.Provider` either: that would have every data-layer test boot a real WorkManager and a real database to run a scheduler test.
 
 ## Conventions
 
