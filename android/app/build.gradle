@@ -78,6 +78,15 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.8.4'
     annotationProcessor 'androidx.room:room-compiler:2.8.4'
 
+    // The sync runs here rather than on a thread the app owns, so it survives the process being
+    // killed and waits for a network instead of failing on one that is not there. Java-only rules
+    // out the ktx artifacts; the base one is enough. It does pull kotlin-stdlib and the coroutines
+    // runtime onto the classpath transitively — the Java constraint is on the source in this
+    // repository, not on what a dependency happens to be written in. Its own room-runtime
+    // requirement is 2.7.0, below the 2.8.4 pinned above, so the resolved version stays matched
+    // to the annotation processor rather than being dragged out from under it.
+    implementation 'androidx.work:work-runtime:2.11.2'
+
     // Retrofit 3 runs on OkHttp 5. Moshi rather than Gson: same maintainers as Retrofit and
     // OkHttp so the three versions move together, and it is the stricter reader of the two —
     // a JSON null where the DTO declares a primitive is refused rather than silently left at
@@ -100,4 +109,7 @@ dependencies {
     // Moshi rather than a stubbed interface — the same reason the database tests run real
     // SQLite. Those tests need no Android framework and so do not run under Robolectric.
     testImplementation 'com.squareup.okhttp3:mockwebserver3:5.4.0'
+    // Runs a worker's doWork() on the spot and lets the scheduler's requests be read back out
+    // of a WorkManager that never touches a real executor or a real alarm.
+    testImplementation 'androidx.work:work-testing:2.11.2'
 }

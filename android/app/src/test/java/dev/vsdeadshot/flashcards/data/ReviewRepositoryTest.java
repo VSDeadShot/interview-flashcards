@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Application;
 import androidx.room.Room;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
@@ -20,6 +21,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 /**
  * Recording a review with the radio off.
@@ -33,6 +35,10 @@ import org.robolectric.RuntimeEnvironment;
  * state rather than approximating either.
  */
 @RunWith(RobolectricTestRunner.class)
+// FlashcardsApp is kept out of this: Robolectric does not create the app's content
+// providers, so androidx.startup never initialises WorkManager and onCreate's call to it
+// throws. A data-layer test has no business running the app's startup wiring anyway.
+@Config(application = Application.class)
 public class ReviewRepositoryTest {
 
     private static final Instant NOW = Instant.parse("2026-03-17T21:30:00Z");

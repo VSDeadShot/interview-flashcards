@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Application;
 import androidx.room.Room;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,6 +16,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 /**
  * Runs against a real SQLite database, in memory, on the JVM — no emulator and no device, for
@@ -23,6 +25,10 @@ import org.robolectric.RuntimeEnvironment;
  * build; what these prove is that the queries return what the app expects once they do.
  */
 @RunWith(RobolectricTestRunner.class)
+// FlashcardsApp is kept out of this: Robolectric does not create the app's content
+// providers, so androidx.startup never initialises WorkManager and onCreate's call to it
+// throws. A data-layer test has no business running the app's startup wiring anyway.
+@Config(application = Application.class)
 public class FlashcardsDatabaseTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 3, 17);

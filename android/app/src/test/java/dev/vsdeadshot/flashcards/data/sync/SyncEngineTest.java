@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Application;
 import androidx.room.Room;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
@@ -25,6 +26,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 /**
  * The sync against both real halves at once — real SQLite through Room, and a real HTTP server
@@ -40,6 +42,10 @@ import org.robolectric.RuntimeEnvironment;
  * asserting that the engine stopped early.
  */
 @RunWith(RobolectricTestRunner.class)
+// FlashcardsApp is kept out of this: Robolectric does not create the app's content
+// providers, so androidx.startup never initialises WorkManager and onCreate's call to it
+// throws. A data-layer test has no business running the app's startup wiring anyway.
+@Config(application = Application.class)
 public class SyncEngineTest {
 
     private static final String KEY = "test-key";
