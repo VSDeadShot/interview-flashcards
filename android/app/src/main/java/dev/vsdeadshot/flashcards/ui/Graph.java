@@ -1,7 +1,10 @@
 package dev.vsdeadshot.flashcards.ui;
 
 import android.content.Context;
+import androidx.annotation.VisibleForTesting;
+import dev.vsdeadshot.flashcards.data.ReviewRepository;
 import dev.vsdeadshot.flashcards.data.StatsRepository;
+import dev.vsdeadshot.flashcards.data.StudyRepository;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -23,6 +26,9 @@ import java.util.concurrent.Executors;
 public final class Graph {
 
     private static volatile ExecutorService io;
+
+    /** Non-null only in tests; see {@link #installDatabase}. */
+    private static volatile FlashcardsDatabase database;
 
     private Graph() {
     }
@@ -47,10 +53,37 @@ public final class Graph {
     }
 
     public static FlashcardsDatabase database(Context context) {
-        return FlashcardsDatabase.get(context);
+        FlashcardsDatabase installed = database;
+        return installed != null ? installed : FlashcardsDatabase.get(context);
+    }
+
+    /**
+     * Points every screen at a database of the caller's choosing.
+     *
+     * <p>Here so that a test exercising a real fragment does not have to go through
+     * {@link FlashcardsDatabase#get}, whose instance is static and on disk and would outlive the
+     * test that built it — leaving rows behind for whichever test class ran next. Production never
+     * calls this, and {@link #reset()} puts it back.
+     */
+    @VisibleForTesting
+    public static void installDatabase(FlashcardsDatabase db) {
+        database = db;
+    }
+
+    @VisibleForTesting
+    public static void reset() {
+        database = null;
     }
 
     public static StatsRepository stats(Context context) {
         return new StatsRepository(database(context));
+    }
+
+    public static StudyRepository study(Context context) {
+        return new StudyRepository(database(context));
+    }
+
+    public static ReviewRepository reviews(Context context) {
+        return new ReviewRepository(database(context));
     }
 }

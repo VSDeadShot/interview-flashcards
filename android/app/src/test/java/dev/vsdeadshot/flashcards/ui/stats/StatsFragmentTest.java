@@ -6,13 +6,19 @@ import static org.robolectric.Shadows.shadowOf;
 import android.app.Application;
 import android.os.Looper;
 import android.widget.TextView;
+import androidx.room.Room;
 import androidx.work.testing.WorkManagerTestInitHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.data.local.CardEntity;
+import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.ui.Graph;
 import dev.vsdeadshot.flashcards.ui.MainActivity;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -31,10 +37,9 @@ import org.robolectric.annotation.Config;
  * taps. There is no emulator on this machine, so a test is the only thing standing between that
  * and finding out later.
  *
- * <p><strong>This is the one test class that touches the real database.</strong> Going through
- * {@code Graph} means {@code FlashcardsDatabase.get} builds its static, on-disk instance inside
- * Robolectric's sandbox. Nothing else in the suite calls {@code get}, so the instance it leaves
- * behind is not something another test can pick up.
+ * <p>The cache it reads is installed rather than built by {@code FlashcardsDatabase.get}: that
+ * instance is static and on disk, and would outlive the test that created it — leaving rows behind
+ * for whichever test class ran next. Installing one also means this test can seed it.
  */
 @RunWith(RobolectricTestRunner.class)
 // FlashcardsApp is kept out of this: Robolectric does not create the app's content providers, so
@@ -42,13 +47,28 @@ import org.robolectric.annotation.Config;
 @Config(application = Application.class)
 public class StatsFragmentTest {
 
+    private FlashcardsDatabase db;
+
     @Before
     public void setUp() {
         WorkManagerTestInitHelper.initializeTestWorkManager(RuntimeEnvironment.getApplication());
+        db = Room.inMemoryDatabaseBuilder(
+                        RuntimeEnvironment.getApplication(), FlashcardsDatabase.class)
+                .allowMainThreadQueries()
+                .build();
+        Graph.installDatabase(db);
+    }
+
+    @After
+    public void tearDown() {
+        Graph.reset();
+        db.close();
     }
 
     @Test
     public void openingTheTabPutsFiguresFromTheCacheOnScreen() throws Exception {
+        cacheCard(1L, LocalDate.now().minusDays(1));
+        cacheCard(2L, LocalDate.now().plusDays(4));
         MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
         BottomNavigationView bottomNav = activity.findViewById(R.id.bottom_nav);
 
@@ -57,10 +77,22 @@ public class StatsFragmentTest {
 
         TextView totalCards = activity.findViewById(R.id.stats_total_cards);
         TextView dueToday = activity.findViewById(R.id.stats_due_today);
-        // An empty cache is the honest answer for a database nothing has synced into, so what is
-        // asserted is that the read completed and reached the views — not a particular count.
-        assertEquals("0 cards", totalCards.getText().toString());
-        assertEquals("0 due today", dueToday.getText().toString());
+        assertEquals("2 cards", totalCards.getText().toString());
+        assertEquals("1 due today", dueToday.getText().toString());
+    }
+
+    private void cacheCard(long id, LocalDate dueDate) {
+        CardEntity card = new CardEntity();
+        card.id = id;
+        card.serverId = id;
+        card.topicId = 1L;
+        card.front = "front " + id;
+        card.back = "back " + id;
+        card.easeFactor = 2.5d;
+        card.intervalDays = 1;
+        card.repetitions = 1;
+        card.dueDate = dueDate;
+        db.cards().upsertAll(List.of(card));
     }
 
     /**

@@ -23,7 +23,26 @@
         <item quantity="other">%1$d due today</item>
     </plurals>
 
-    <string name="placeholder_study">The study queue goes here.</string>
+    <string name="study_show_answer">Show answer</string>
+
+    <!-- 1 and 2 are below Sm2Scheduler.LAPSE_THRESHOLD and send the card back to the start of
+         the ladder; 3 to 5 advance it. The wording is meant to make that boundary legible without
+         a legend, which a bare 1-to-5 ramp would not. -->
+    <string name="study_confidence_1">No idea</string>
+    <string name="study_confidence_2">Wrong</string>
+    <string name="study_confidence_3">Shaky</string>
+    <string name="study_confidence_4">Good</string>
+    <string name="study_confidence_5">Instant</string>
+
+    <plurals name="study_due_today">
+        <item quantity="one">%1$d card due</item>
+        <item quantity="other">%1$d cards due</item>
+    </plurals>
+
+    <string name="study_caught_up">All caught up. Nothing due today.</string>
+    <!-- Deliberately not the sentence above. A fresh install has finished nothing, and the real
+         reason its queue is empty is that no sync has run yet. -->
+    <string name="study_no_cards">No cards here yet. Run a sync to fetch them.</string>
     <string name="placeholder_cards">The card list goes here.</string>
 
 </resources>

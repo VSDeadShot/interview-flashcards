@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Application;
 import androidx.appcompat.widget.Toolbar;
+import androidx.room.Room;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.work.WorkInfo;
@@ -13,8 +14,10 @@ import androidx.work.WorkManager;
 import androidx.work.testing.WorkManagerTestInitHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.sync.SyncScheduler;
 import java.util.List;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,11 +30,10 @@ import org.robolectric.annotation.Config;
  * The shell: that it inflates at all, that the bottom bar drives the graph, and that the sync
  * action has somewhere to go.
  *
- * <p>The Stats tab is deliberately never selected here. Reaching it builds the on-disk database
- * through {@code FlashcardsDatabase.get}, whose instance is static and would outlive the test that
- * created it. What this class asserts about that destination is that it exists and that the bar
- * names it, which is the part the shell is responsible for; reading the cache is
- * {@code StatsViewModelTest}'s job.
+ * <p>Every destination reads the cache now that the study queue is the start destination, so this
+ * installs an in-memory one rather than letting {@code FlashcardsDatabase.get} build its static,
+ * on-disk instance and leave it behind for whichever test class runs next. What the screens do
+ * with what they read is each screen's own test; this class is about the shell around them.
  */
 @RunWith(RobolectricTestRunner.class)
 // FlashcardsApp is kept out of this: Robolectric does not create the app's content providers, so
@@ -41,11 +43,23 @@ import org.robolectric.annotation.Config;
 public class MainActivityTest {
 
     private MainActivity activity;
+    private FlashcardsDatabase db;
 
     @Before
     public void setUp() {
         WorkManagerTestInitHelper.initializeTestWorkManager(RuntimeEnvironment.getApplication());
+        db = Room.inMemoryDatabaseBuilder(
+                        RuntimeEnvironment.getApplication(), FlashcardsDatabase.class)
+                .allowMainThreadQueries()
+                .build();
+        Graph.installDatabase(db);
         activity = Robolectric.buildActivity(MainActivity.class).setup().get();
+    }
+
+    @After
+    public void tearDown() {
+        Graph.reset();
+        db.close();
     }
 
     @Test
