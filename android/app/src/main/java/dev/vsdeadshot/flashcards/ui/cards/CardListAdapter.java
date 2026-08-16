@@ -43,15 +43,23 @@ public final class CardListAdapter
                 }
             };
 
-    public CardListAdapter() {
+    /** What a tapped row does. Given rather than assumed, so the adapter owns no navigation. */
+    public interface OnCardTapped {
+        void onCardTapped(long localId);
+    }
+
+    private final OnCardTapped onCardTapped;
+
+    public CardListAdapter(OnCardTapped onCardTapped) {
         super(DIFF);
+        this.onCardTapped = onCardTapped;
     }
 
     @NonNull
     @Override
     public CardViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         return new CardViewHolder(LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_card, parent, false));
+                .inflate(R.layout.item_card, parent, false), onCardTapped);
     }
 
     @Override
@@ -65,14 +73,18 @@ public final class CardListAdapter
         private final TextView topic;
         private final TextView status;
 
-        CardViewHolder(@NonNull View row) {
+        private final OnCardTapped onCardTapped;
+
+        CardViewHolder(@NonNull View row, OnCardTapped onCardTapped) {
             super(row);
+            this.onCardTapped = onCardTapped;
             front = row.findViewById(R.id.card_front);
             topic = row.findViewById(R.id.card_topic);
             status = row.findViewById(R.id.card_status);
         }
 
         void bind(CardSummaryRow card) {
+            itemView.setOnClickListener(tapped -> onCardTapped.onCardTapped(card.id));
             front.setText(card.front);
             // A card outlives its topic being deleted on the server, so the row has to say
             // something. Blank would read as a row that failed to load.

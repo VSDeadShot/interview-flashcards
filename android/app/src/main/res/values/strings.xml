@@ -49,6 +49,31 @@
     <string name="cards_rejected">Rejected</string>
     <string name="cards_no_topic">No topic</string>
 
-    <string name="cards_empty">No cards yet. Run a sync to fetch them.</string>
+    <string name="cards_empty">No cards yet. Run a sync to fetch them, or write one.</string>
+    <string name="cards_new">New card</string>
+
+    <string name="editor_new">New card</string>
+    <string name="editor_edit">Edit card</string>
+    <string name="editor_topic">Topic</string>
+    <string name="editor_front">Question</string>
+    <string name="editor_back">Answer</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_archive">Archive</string>
+    <string name="editor_cancel">Cancel</string>
+    <string name="editor_required">This cannot be empty</string>
+
+    <!-- The server's own detail string, shown as it arrived. A generic "could not sync" would
+         drop the only part somebody can act on, and the backend writes these for a caller. -->
+    <string name="editor_rejected">The server refused this card: %1$s
+
+Fix it and save to try again.</string>
+
+    <string name="editor_no_topics">No topics yet. Run a sync before writing a card.</string>
+    <string name="editor_gone">That card is no longer here.</string>
+
+    <string name="editor_archive_title">Archive this card?</string>
+    <!-- Two different warnings, because archiving is two different things. -->
+    <string name="editor_archive_synced">It stops appearing in your queue. The server keeps its history.</string>
+    <string name="editor_archive_local">This card has never reached the server, so archiving deletes it here. Nothing can bring it back.</string>
 
 </resources>

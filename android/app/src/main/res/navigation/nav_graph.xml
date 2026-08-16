@@ -18,7 +18,40 @@
         android:id="@+id/cardListFragment"
         android:name="dev.vsdeadshot.flashcards.ui.cards.CardListFragment"
         android:label="@string/nav_cards"
-        tools:layout="@layout/fragment_card_list" />
+        tools:layout="@layout/fragment_card_list">
+
+        <action
+            android:id="@+id/action_cardList_to_cardEditor"
+            app:destination="@id/cardEditorFragment" />
+
+    </fragment>
+
+    <!--
+        Not in the bottom bar's menu, which is what AppBarConfiguration is built from, so this is
+        the one destination that is not top level and shows an up arrow.
+
+        The label is a placeholder NavigationUI fills from the arguments, which is how one
+        destination is titled "New card" or "Edit card" without a second destination or the Safe
+        Args plugin.
+    -->
+    <fragment
+        android:id="@+id/cardEditorFragment"
+        android:name="dev.vsdeadshot.flashcards.ui.cards.CardEditorFragment"
+        android:label="{title}"
+        tools:layout="@layout/fragment_card_editor">
+
+        <!-- 0 rather than -1 for "a new card": local ids run downwards from zero, so -1 is a
+             real card, and server ids start at 1. Zero is the one value that is never an id. -->
+        <argument
+            android:name="cardId"
+            android:defaultValue="0L"
+            app:argType="long" />
+
+        <argument
+            android:name="title"
+            app:argType="string" />
+
+    </fragment>
 
     <fragment
         android:id="@+id/statsFragment"

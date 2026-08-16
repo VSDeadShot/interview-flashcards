@@ -22,4 +22,16 @@
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:visibility="gone" />
 
+    <!-- Last in the file, so it draws above the empty message rather than under it. The empty
+         message fills the frame, and an empty list is exactly when writing a card is the only
+         thing left to do. -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/cards_new"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/cards_new"
+        android:src="@drawable/ic_add" />
+
 </FrameLayout>

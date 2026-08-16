@@ -4,15 +4,20 @@
     each one on its own raised surface makes the list read as a stack of objects to arrange rather
     than a set of lines to scan.
 
-    Deliberately no selectableItemBackground yet: nothing here is tappable until the editor lands,
-    and a ripple that leads nowhere is a promise the screen cannot keep.
+    Overdraw is suppressed rather than avoided: the background is a ripple, which is the whole of
+    the touch feedback on a tappable row, and there is no version of that which paints nothing.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
     android:orientation="vertical"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp">
+    android:paddingVertical="12dp"
+    tools:ignore="Overdraw">
 
     <TextView
         android:id="@+id/card_front"

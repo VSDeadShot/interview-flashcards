@@ -23,6 +23,9 @@ import dev.vsdeadshot.flashcards.data.sync.SyncScheduler;
  */
 public final class MainActivity extends AppCompatActivity {
 
+    private NavController navController;
+    private AppBarConfiguration appBarConfiguration;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,15 +37,30 @@ public final class MainActivity extends AppCompatActivity {
         // not exist until after setContentView has run, and this is the supported way to reach it.
         NavHostFragment host =
                 (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host);
-        NavController navController = host.getNavController();
+        navController = host.getNavController();
 
         BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
         NavigationUI.setupWithNavController(bottomNav, navController);
         // Built from the bottom bar's own menu, so every tab counts as a top-level destination
         // and none of them shows an up arrow. Built from the graph instead, only the start
         // destination would, and the other two tabs would offer to go "up" to Study.
-        NavigationUI.setupActionBarWithNavController(this, navController,
-                new AppBarConfiguration.Builder(bottomNav.getMenu()).build());
+        appBarConfiguration = new AppBarConfiguration.Builder(bottomNav.getMenu()).build();
+        NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
+    }
+
+    /**
+     * Makes the up arrow do something.
+     *
+     * <p>The card editor is the one destination outside the bottom bar's menu, so
+     * {@link AppBarConfiguration} already treats it as not top level and draws the arrow. Without
+     * this the arrow is decoration.
+     */
+    @Override
+    public boolean onSupportNavigateUp() {
+        // NavigationUI.navigateUp, not NavController.navigateUp(AppBarConfiguration):
+        // the latter is a Kotlin extension and does not exist from Java.
+        return NavigationUI.navigateUp(navController, appBarConfiguration)
+                || super.onSupportNavigateUp();
     }
 
     @Override
