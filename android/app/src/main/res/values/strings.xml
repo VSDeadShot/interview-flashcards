@@ -43,6 +43,12 @@
     <!-- Deliberately not the sentence above. A fresh install has finished nothing, and the real
          reason its queue is empty is that no sync has run yet. -->
     <string name="study_no_cards">No cards here yet. Run a sync to fetch them.</string>
-    <string name="placeholder_cards">The card list goes here.</string>
+    <!-- Shown on a row only when there is something to say. Most rows are synced and say
+         nothing at all; a badge on every one of them would be noise. -->
+    <string name="cards_unsent">Unsent</string>
+    <string name="cards_rejected">Rejected</string>
+    <string name="cards_no_topic">No topic</string>
+
+    <string name="cards_empty">No cards yet. Run a sync to fetch them.</string>
 
 </resources>

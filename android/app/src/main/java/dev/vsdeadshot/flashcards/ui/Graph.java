@@ -2,6 +2,7 @@ package dev.vsdeadshot.flashcards.ui;
 
 import android.content.Context;
 import androidx.annotation.VisibleForTesting;
+import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.ReviewRepository;
 import dev.vsdeadshot.flashcards.data.StatsRepository;
 import dev.vsdeadshot.flashcards.data.StudyRepository;
@@ -85,5 +86,9 @@ public final class Graph {
 
     public static ReviewRepository reviews(Context context) {
         return new ReviewRepository(database(context));
+    }
+
+    public static CardRepository cards(Context context) {
+        return new CardRepository(database(context));
     }
 }

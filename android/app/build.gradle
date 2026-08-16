@@ -113,6 +113,11 @@ dependencies {
     implementation 'androidx.navigation:navigation-fragment:2.9.8'
     implementation 'androidx.navigation:navigation-ui:2.9.8'
 
+    // Declared rather than inherited. Material brings recyclerview at 1.2.1 transitively, and
+    // the card list compiles against it directly — the same objection this file already makes to
+    // letting Retrofit choose the OkHttp the tests run on.
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+
     // Declared rather than inherited: Room's LiveData support is compileOnly, so room-runtime
     // brings arch core-runtime and nothing else. Without these two lines LiveData is simply
     // absent from the classpath.
