@@ -1,16 +1,19 @@
 package dev.vsdeadshot.flashcards.data;
 
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
+import dev.vsdeadshot.flashcards.data.local.CardSummaryRow;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
+import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.scheduler.SchedulingState;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Writing and editing cards, with or without a network.
+ * Cards: reading them, writing them, and changing them, with or without a network.
  *
  * <p>A card written here is real immediately: it goes into the same table every screen reads,
  * with the same starting schedule the server would have given it, so it can be studied in the
@@ -33,6 +36,36 @@ public final class CardRepository {
     public CardRepository(FlashcardsDatabase db, Clock clock) {
         this.db = Objects.requireNonNull(db, "db must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+    }
+
+    /**
+     * Every card in circulation, newest first within each topic.
+     *
+     * <p>Not in a transaction: it is one query, and one query is already one moment.
+     */
+    public List<CardSummaryRow> list() {
+        return db.cards().summaries();
+    }
+
+    /**
+     * The whole card behind a listing row, or <strong>null if it is no longer there</strong> — a
+     * sync can archive it between the list being drawn and a row being tapped, and an editor that
+     * says so is better than one that throws on being opened.
+     */
+    public CardEntity find(long localId) {
+        return db.cards().findById(localId);
+    }
+
+    /**
+     * The topics a card may be filed under.
+     *
+     * <p>Here rather than somewhere of its own because it is not a topic feature — it is what
+     * {@link #create} and {@link #edit} will accept, both of which refuse a topic this device does
+     * not know about. A device that has never synced has none, and an editor has to say that
+     * rather than offer an empty list and fail on save.
+     */
+    public List<TopicEntity> topics() {
+        return db.topics().findAll();
     }
 
     /**

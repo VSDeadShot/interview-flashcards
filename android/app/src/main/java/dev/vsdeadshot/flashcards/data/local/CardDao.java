@@ -165,6 +165,30 @@ public interface CardDao {
     @Query("delete from card where id = :id")
     void deleteById(long id);
 
+    /**
+     * Every card in circulation, with its topic name already joined on.
+     *
+     * <p>A <strong>left</strong> join, not an inner one: a pull can write a card before its topic
+     * and a topic can be deleted on the server, and neither is a reason for a card to vanish from
+     * the one screen that is supposed to show all of them. The name comes back null instead.
+     *
+     * <p>Joined here rather than looked up per card, because this is the one query that returns
+     * every card at once and a lookup each would be the N+1 in its most literal form.
+     *
+     * <p>Ordered by topic, then by id ascending. Local ids run downwards from zero, so within a
+     * topic the most recently written card sorts first — which is where somebody who has just
+     * added one will look for it.
+     */
+    @Query("""
+            select c.id as id, c.front as front, t.name as topicName,
+                   c.serverId as serverId, c.pendingSince as pendingSince,
+                   c.syncError as syncError
+            from card c left join topic t on t.id = c.topicId
+            where c.archived = 0
+            order by t.name asc, c.id asc
+            """)
+    List<CardSummaryRow> summaries();
+
     @Query("select * from card where archived = 0 order by id asc")
     List<CardEntity> findAllActive();
 
