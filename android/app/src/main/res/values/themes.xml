@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        DayNight, so the app follows the system rather than insisting on one appearance, and
+        NoActionBar because the toolbar is in the layout: the bottom bar and the toolbar have to
+        be siblings of the fragment container for the container to be the only thing that
+        changes as destinations swap.
+    -->
+    <style name="Theme.Flashcards" parent="Theme.Material3.DayNight.NoActionBar" />
+
+</resources>

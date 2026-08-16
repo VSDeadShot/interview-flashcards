@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Interview Flashcards</string>
+
+    <string name="nav_study">Study</string>
+    <string name="nav_cards">Cards</string>
+    <string name="nav_stats">Stats</string>
+
+    <string name="action_sync_now">Sync now</string>
+    <string name="sync_queued">Syncing…</string>
+
+    <!-- Two figures rather than a stats screen. The screen itself is a later slice; these are
+         here because a number read from the cache is what proves a screen can read the cache.
+         Plurals rather than strings: a brand new cache holds "1 card", not "1 cards", and the
+         count reaching one is the ordinary case here rather than an edge of it. -->
+    <plurals name="stats_total_cards">
+        <item quantity="one">%1$d card</item>
+        <item quantity="other">%1$d cards</item>
+    </plurals>
+    <plurals name="stats_due_today">
+        <item quantity="one">%1$d due today</item>
+        <item quantity="other">%1$d due today</item>
+    </plurals>
+
+    <string name="placeholder_study">The study queue goes here.</string>
+    <string name="placeholder_cards">The card list goes here.</string>
+
+</resources>

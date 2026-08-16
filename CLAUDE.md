@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and the figures a stats screen reads; what it does not have yet is any UI at all.
+**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and the figures a stats screen reads, and the shell of a UI — one activity, three destinations and the seam a screen reads the cache through. The three screens themselves are still placeholders.
 
 ## Commands
 
@@ -177,7 +177,7 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 - **A server answer is written narrowly, never as a whole row.** A create's echo and a review's answer both return the entire card, but the only parts this client did not already have are the id and the schedule — `recordCreated` and `recordSchedule` write exactly those. Writing the rest back undoes an edit or an archive that has not been sent, along with the marker saying it still needs to be.
 - **Conflicts are last-writer-wins, deliberately.** An edit sent from here overwrites whatever the server holds; there is no `If-Match` in the contract to do better. Documented under [Retrying safely](docs/api-contract.md) rather than half-solved.
 - **`GET /stats` is fetched last in the pull and its failure is swallowed.** Topics and cards are the app; the streak is decoration on one screen, and letting a hiccup fetching it turn a completed pull into a failed one would have the worker retry everything it had just finished.
-- `FlashcardsApp` puts the schedule back at every process start, because a process is often started by something other than a person opening the app. **`SyncScheduler.syncNow` has no caller yet** — `ReviewRepository` has no `Context` and should not grow one, so the UI wires it after `record()` returns.
+- `FlashcardsApp` puts the schedule back at every process start, because a process is often started by something other than a person opening the app. **`SyncScheduler.syncNow` is called from the toolbar's sync action**, not from `ReviewRepository` — that has no `Context` and should not grow one, so the study screen wires it after `record()` returns.
 
 ### The remote layer
 
@@ -188,6 +188,43 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 - **`ApiException.disposition()` is the single place that decides what a failure means** — `RETRY`, `DROP`, or `STOP`. A `409` is the only status the server disambiguates for us, via `retryable`: true is a raced idempotency key, false is a reused one. A `409` with no `retryable` field is treated as permanent, because a retry loop on a conflict is the worse of the two failures.
 - **`401` carries no body at all** — the filter rejects before any handler runs, so there is no `problem+json`, no content type, and nothing to parse. Verified against the running backend, and the test says so.
 - Cleartext HTTP is permitted in **debug builds only**, and only for `10.0.2.2` and `localhost`, rather than as a blanket exemption. A real device on the LAN means adding that host to `app/src/debug/res/xml/network_security_config.xml` and setting `flashcards.baseUrl`.
+
+### The UI
+
+One activity, a Navigation graph with three peer destinations, and a bottom bar whose menu item
+ids *are* the destination ids — that match is what `NavigationUI` works on, and nothing about a
+mismatch fails the build, so `MainActivityTest` asserts on it instead.
+
+**How a screen reads the cache is the decision this layer turns on.** Repositories stay blocking
+and composed; a `ViewModel` runs them on `Graph.io()` and publishes through `MutableLiveData`.
+Two shorter-looking routes were considered and rejected:
+
+- **A DAO returning `LiveData` from a `@Query`** works only for a read that *is* one query.
+  `StatsRepository.snapshot()` is five queries in one transaction against an injected clock, and
+  `CardDao.queue(today, limit)` binds today as a parameter — a `LiveData` built at 23:59 keeps
+  that date forever, because nothing invalidates on a clock. Going this way means hoisting the
+  composition into the view model and losing both the transaction and a repository that can be
+  tested synchronously.
+- **`InvalidationTracker.createLiveData(tables, Callable)`** looks like exactly the right seam and
+  is not available: every overload is `@RestrictTo(LIBRARY_GROUP_PREFIX)`, it exists for Room's
+  generated DAO code, and lint's `RestrictedApi` check is error severity — so using it means
+  suppressing a lint error to reach a library's internals. Verified against the 2.8.4 jar, not
+  assumed.
+
+**Freshness comes from one `InvalidationTracker.Observer` per view model**, which is supported
+API. It fires for a write made by the sync because `SyncWorker` goes through
+`FlashcardsDatabase.get` — the same instance in the same process, since nothing in the manifest
+asks for another one. The observer is removed in `onCleared`: Room holds it strongly, so leaving
+it registered keeps the view model and the read it schedules alive for as long as the process is.
+
+`Graph` is a static holder rather than a DI container, and **its executor is single-threaded on
+purpose** — a repository call may write, and a read of the same data queued behind it shows the
+state that write produced rather than racing it.
+
+There is deliberately **no abstract view-model base yet**. `StatsViewModel` is the only consumer
+of the pattern; six repeated lines are cheaper than an abstraction chosen before its second user
+exists. Extract it when the study screen and the card list have both landed and all three read
+the same way.
 
 ### Android tests
 

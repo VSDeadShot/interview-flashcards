@@ -101,6 +101,24 @@ dependencies {
     // Postgres. Verified by resolving both classpaths rather than assumed.
     implementation 'com.squareup.okhttp3:okhttp:5.4.0'
 
+    // The UI is XML views: Jetpack Compose is a Kotlin compiler plugin, so the Java-only rule
+    // rules it out. AppCompat is what an activity extends; Material supplies the theme the
+    // toolbar and the bottom bar are drawn against.
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'com.google.android.material:material:1.14.0'
+
+    // Three peer destinations need no more than a fragment swap, but the card list opens an
+    // editor carrying a card id and wants a working up button, and hand-rolling that back stack
+    // is the more expensive half of the choice.
+    implementation 'androidx.navigation:navigation-fragment:2.9.8'
+    implementation 'androidx.navigation:navigation-ui:2.9.8'
+
+    // Declared rather than inherited: Room's LiveData support is compileOnly, so room-runtime
+    // brings arch core-runtime and nothing else. Without these two lines LiveData is simply
+    // absent from the classpath.
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.11.0'
+    implementation 'androidx.lifecycle:lifecycle-livedata:2.11.0'
+
     testImplementation 'junit:junit:4.13.2'
     // Runs the Android framework on the JVM, so the database tests need no emulator — the
     // same reason the backend runs Postgres in-process rather than asking for Docker.

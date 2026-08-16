@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/studyFragment">
+
+    <!-- Three peers with no actions between them: the bottom bar is the only way from one to
+         another, and each is a top-level destination, so none of them shows an up button. -->
+
+    <fragment
+        android:id="@+id/studyFragment"
+        android:name="dev.vsdeadshot.flashcards.ui.study.StudyFragment"
+        android:label="@string/nav_study"
+        tools:layout="@layout/fragment_study" />
+
+    <fragment
+        android:id="@+id/cardListFragment"
+        android:name="dev.vsdeadshot.flashcards.ui.cards.CardListFragment"
+        android:label="@string/nav_cards"
+        tools:layout="@layout/fragment_card_list" />
+
+    <fragment
+        android:id="@+id/statsFragment"
+        android:name="dev.vsdeadshot.flashcards.ui.stats.StatsFragment"
+        android:label="@string/nav_stats"
+        tools:layout="@layout/fragment_stats" />
+
+</navigation>

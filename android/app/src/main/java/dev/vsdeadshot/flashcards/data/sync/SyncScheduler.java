@@ -27,8 +27,11 @@ import java.time.Duration;
  */
 public final class SyncScheduler {
 
-    static final String PERIODIC_WORK = "sync-periodic";
-    static final String IMMEDIATE_WORK = "sync-now";
+    // Public because they name work, and anything that enqueues or asks after a run needs to
+    // name the same thing. A caller that spelled the string itself would keep working right up
+    // until one of the two spellings changed.
+    public static final String PERIODIC_WORK = "sync-periodic";
+    public static final String IMMEDIATE_WORK = "sync-now";
 
     /**
      * Often enough that a phone that spent the morning offline is current by lunch, rarely
