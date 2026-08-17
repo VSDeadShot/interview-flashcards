@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Two cards, one behind the other. Geometry only, no lettering: a glyph small enough to fit here
+    is a glyph nobody reads at 48dp, and the stack says "flashcards" on its own.
+
+    The 108dp viewport is the adaptive-icon canvas, of which a launcher may mask away everything
+    outside a **circle** of radius 33 about the centre — not a square, which is the mistake that
+    costs a design its bottom corners on a round-masked launcher and nothing anywhere reports. The
+    furthest corner here, the rotated card's top right, sits 31.1 from the centre.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- The card behind, tilted and dimmed so the stack reads as depth rather than as one shape
+         with an odd outline. It clears the front card by 16 units, which is what stops it looking
+         like a flap rather than a second card. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-12">
+        <path
+            android:fillColor="#99FFFFFF"
+            android:pathData="M40,32 L72,32 A4,4 0 0,1 76,36 L76,56 A4,4 0 0,1 72,60 L40,60 A4,4 0 0,1 36,56 L36,36 A4,4 0 0,1 40,32 Z" />
+    </group>
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M36,48 L68,48 A4,4 0 0,1 72,52 L72,72 A4,4 0 0,1 68,76 L36,76 A4,4 0 0,1 32,72 L32,52 A4,4 0 0,1 36,48 Z" />
+
+    <!-- Cut in the background colour rather than a grey, so the bars read as the card showing
+         through rather than as ink printed on it. -->
+    <path
+        android:fillColor="#6750A4"
+        android:pathData="M40,56 L62,56 A2,2 0 0,1 62,60 L40,60 A2,2 0 0,1 40,56 Z" />
+    <path
+        android:fillColor="#6750A4"
+        android:pathData="M40,64 L54,64 A2,2 0 0,1 54,68 L40,68 A2,2 0 0,1 40,64 Z" />
+
+</vector>

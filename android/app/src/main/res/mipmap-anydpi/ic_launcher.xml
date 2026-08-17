@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive only: no density-bucketed PNGs beside it, and no -v26 qualifier on the folder either.
+    Both fall out of minSdk 26. Adaptive icons arrived in exactly that release, so every device
+    this app installs on understands one, there is no older device left to fall back for, and
+    qualifying the folder would be qualifying against nothing — which lint says out loud as
+    ObsoleteSdkInt. A project one API level lower would need the -v26 folder and the whole
+    mipmap-mdpi through -xxxhdpi set as well.
+
+    There is deliberately no android:roundIcon in the manifest to match. That attribute exists so
+    a round-masked launcher can be given a separately drawn icon; an adaptive icon is masked by
+    the launcher itself, so a second one would be the same drawing asked for twice.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

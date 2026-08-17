@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        The launcher background, and the only hard-coded colour in the app. Everything on a screen
+        takes its colour from the theme, but a launcher icon is drawn by the launcher against a
+        wallpaper this app knows nothing about, so it cannot inherit and has to commit.
+
+        Material 3's baseline primary, so the icon looks like the app it opens on a device with no
+        dynamic colour to apply.
+    -->
+    <color name="ic_launcher_background">#6750A4</color>
+
+</resources>
