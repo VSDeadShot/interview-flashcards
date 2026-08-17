@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Not tappable, and deliberately so: there is no filtered-by-topic list to open, and a row that
+    highlights under a finger and then does nothing is worse than one that never invited the tap.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingVertical="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/topic_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+        <TextView
+            android:id="@+id/topic_counts"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+    </LinearLayout>
+
+    <!--
+        The filled part is the cards that are *not* due — how much of this topic is currently
+        under control. It is a shape to compare topics by at a glance, not a measure of progress
+        through them, which nothing here could claim: a card falls back out of the filled part
+        the moment its interval elapses.
+    -->
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/topic_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        app:trackCornerRadius="2dp"
+        app:trackThickness="4dp" />
+
+</LinearLayout>

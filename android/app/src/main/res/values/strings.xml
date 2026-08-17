@@ -10,18 +10,32 @@
     <string name="action_sync_now">Sync now</string>
     <string name="sync_queued">Syncing…</string>
 
-    <!-- Two figures rather than a stats screen. The screen itself is a later slice; these are
-         here because a number read from the cache is what proves a screen can read the cache.
-         Plurals rather than strings: a brand new cache holds "1 card", not "1 cards", and the
-         count reaching one is the ordinary case here rather than an edge of it. -->
-    <plurals name="stats_total_cards">
-        <item quantity="one">%1$d card</item>
-        <item quantity="other">%1$d cards</item>
+    <!-- Bare numbers with labels beneath them rather than "12 cards". Three figures side by
+         side are read by comparing them, and a unit repeated under each one is three words in the
+         way of that. -->
+    <string name="stats_due_label">Due today</string>
+    <string name="stats_reviewed_label">Reviewed today</string>
+    <string name="stats_total_label">In circulation</string>
+
+    <string name="stats_streak_title">Streak</string>
+    <plurals name="stats_streak_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
     </plurals>
-    <plurals name="stats_due_today">
-        <item quantity="one">%1$d due today</item>
-        <item quantity="other">%1$d due today</item>
+    <string name="stats_streak_as_of">Last fetched %1$s</string>
+    <!-- Shown instead of the number, never beside a zero. The streak is worked out on the server
+         because its rule needs the whole review history; telling somebody thirty days into a run
+         that they are on nothing is the worst thing this screen could do. -->
+    <string name="stats_streak_unknown">Not fetched yet. Run a sync to get it from the server.</string>
+
+    <string name="stats_by_topic">By topic</string>
+    <!-- The quantity is the topic total, not the due count: "of 1 card" is the half of this
+         sentence that inflects. -->
+    <plurals name="stats_topic_counts">
+        <item quantity="one">%1$d due of %2$d card</item>
+        <item quantity="other">%1$d due of %2$d cards</item>
     </plurals>
+    <string name="stats_no_topics">No topics yet. Run a sync to fetch them.</string>
 
     <string name="study_show_answer">Show answer</string>
 

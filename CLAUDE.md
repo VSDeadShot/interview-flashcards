@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: the backend is complete — every endpoint in `docs/api-contract.md`'s table is implemented and served over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and the figures a stats screen reads, and the shell of a UI — one activity, three destinations and the seam a screen reads the cache through. The three screens themselves are still placeholders.
+**Current state**: both halves are feature-complete against `docs/api-contract.md`. The backend implements every endpoint in that document's table and serves it over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and all four UI destinations — study, the card list, the editor and stats — each reading the cache through the same seam. **Nothing has been run on a device or an emulator**: there is neither on this machine, so every screen is covered by Robolectric only and no end-to-end run against a live backend has happened.
 
 ## Commands
 
@@ -191,9 +191,12 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 
 ### The UI
 
-One activity, a Navigation graph with three peer destinations, and a bottom bar whose menu item
-ids *are* the destination ids — that match is what `NavigationUI` works on, and nothing about a
-mismatch fails the build, so `MainActivityTest` asserts on it instead.
+One activity, a Navigation graph with three peer destinations plus the card editor reached from
+the list, and a bottom bar whose menu item ids *are* the destination ids — that match is what
+`NavigationUI` works on, and nothing about a mismatch fails the build, so `MainActivityTest`
+asserts on it instead. The editor is one destination titled two ways: its `android:label` is
+`{title}`, which `NavigationUI` fills from the arguments, so "New card" and "Edit card" cost
+neither a second destination nor the Safe Args plugin.
 
 **How a screen reads the cache is the decision this layer turns on.** Repositories stay blocking
 and composed; a `ViewModel` runs them on `Graph.io()` and publishes through `MutableLiveData`.
@@ -221,10 +224,25 @@ it registered keeps the view model and the read it schedules alive for as long a
 purpose** — a repository call may write, and a read of the same data queued behind it shows the
 state that write produced rather than racing it.
 
-There is deliberately **no abstract view-model base yet**. `StatsViewModel` is the only consumer
-of the pattern; six repeated lines are cheaper than an abstraction chosen before its second user
-exists. Extract it when the study screen and the card list have both landed and all three read
-the same way.
+**There is still no abstract view-model base, and now it is a finding rather than a deferral.**
+All four view models have landed and they do *not* all read the same way. `StatsViewModel` and
+`CardListViewModel` subscribe to invalidation; the other two deliberately do not. `StudyViewModel`
+would otherwise swap the question out from under somebody mid-answer, so it reloads only when it
+has itself moved on, and `CardEditorViewModel` holds a card the user is typing into, which a
+refresh would overwrite. A base class would fit half of them, which is the shape that makes a base
+class a liability rather than a saving.
+
+**`StudyViewModel.reload()` captures what is showing on the main thread before hopping.** It keeps
+the answer revealed only when the card that comes back is the same one, so a background sync
+neither hides a revealed answer nor leaves a new question showing its predecessor's answer.
+
+**The stats screen is where null and zero are different answers.** `StatsView.streakDays` is null
+until a sync has fetched it, and the number and the sentence under it are separate views precisely
+so the number can be hidden — a confident zero shown to somebody a month into a run is the worst
+thing this feature could do, and it is `StatsFragmentTest` that holds that line. Its topic
+breakdown is inflated into a plain `LinearLayout` rather than drawn by a `RecyclerView`: the rows
+scroll with the figures above them, a `RecyclerView` nested in a scrolling parent has to be told to
+stop recycling before it will lay out at all, and the list is bounded by the number of topics.
 
 ### Android tests
 
