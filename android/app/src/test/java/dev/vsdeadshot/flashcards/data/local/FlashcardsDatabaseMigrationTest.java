@@ -111,7 +111,8 @@ public class FlashcardsDatabaseMigrationTest {
         return Room.databaseBuilder(context, FlashcardsDatabase.class, NAME)
                 .addMigrations(FlashcardsDatabase.MIGRATION_1_2, FlashcardsDatabase.MIGRATION_2_3,
                         FlashcardsDatabase.MIGRATION_3_4,
-                        FlashcardsDatabase.MIGRATION_4_5)
+                        FlashcardsDatabase.MIGRATION_4_5,
+                        FlashcardsDatabase.MIGRATION_5_6)
                 .allowMainThreadQueries()
                 .build();
     }

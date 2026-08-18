@@ -31,9 +31,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
             CardEntity.class,
             PendingReviewEntity.class,
             StatsSnapshotEntity.class,
-            ReviewTallyEntity.class
+            ReviewTallyEntity.class,
+            CandidateEntity.class
         },
-        version = 5,
+        version = 6,
         exportSchema = true)
 @TypeConverters(Converters.class)
 public abstract class FlashcardsDatabase extends RoomDatabase {
@@ -45,6 +46,8 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
     public abstract PendingReviewDao pendingReviews();
 
     public abstract StatsDao stats();
+
+    public abstract CandidateDao candidates();
 
     /**
      * Adds the local id and the create key.
@@ -110,6 +113,24 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
         }
     };
 
+    /**
+     * Adds the table generated candidates wait in.
+     *
+     * <p>Statement copied from the schema Room generated rather than written by hand, like the one
+     * above: Room compares the migrated table against its own expectation column by column, and a
+     * hand-written {@code create table} differing in any of them fails at open time on a real
+     * device rather than here.
+     */
+    static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `candidate` (`id` INTEGER PRIMARY KEY"
+                    + " AUTOINCREMENT NOT NULL, `topicId` INTEGER NOT NULL,"
+                    + " `front` TEXT NOT NULL, `back` TEXT NOT NULL,"
+                    + " `generatedAt` INTEGER)");
+        }
+    };
+
     private static volatile FlashcardsDatabase instance;
 
     public static FlashcardsDatabase get(Context context) {
@@ -123,7 +144,8 @@ public abstract class FlashcardsDatabase extends RoomDatabase {
                             // No destructive fallback. An unsynced card lives in this file and
                             // nowhere else, so a missing migration must fail loudly rather than
                             // quietly discard what the user wrote.
-                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+                                    MIGRATION_4_5, MIGRATION_5_6)
                             .build();
                 }
             }
