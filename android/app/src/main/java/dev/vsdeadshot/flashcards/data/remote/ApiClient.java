@@ -32,6 +32,9 @@ public final class ApiClient {
                 // After the key, so the response this one inspects is the response to a request
                 // that actually carried one.
                 .addInterceptor(new ProblemInterceptor(moshi))
+                // Last, so a call asking for a longer read timeout gets it applied to the whole
+                // chain below rather than being cut short while its failure is being classified.
+                .addInterceptor(new TimeoutInterceptor())
                 // Short enough that a sync on a dead network gives up while the user is still
                 // looking at the screen, long enough for a phone waking its radio.
                 .connectTimeout(Duration.ofSeconds(10))

@@ -3,6 +3,13 @@ package dev.vsdeadshot.flashcards.data;
 import dev.vsdeadshot.flashcards.data.local.CandidateEntity;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
+import dev.vsdeadshot.flashcards.data.remote.FlashcardsApi;
+import dev.vsdeadshot.flashcards.data.remote.dto.CandidateDto;
+import dev.vsdeadshot.flashcards.data.remote.dto.GenerateRequestDto;
+import dev.vsdeadshot.flashcards.data.remote.dto.GenerateResponseDto;
+import java.io.IOException;
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -15,10 +22,23 @@ public final class CandidateRepository {
 
     private final FlashcardsDatabase db;
     private final CardRepository cards;
+    private final FlashcardsApi api;
+    private final Clock clock;
 
+    /**
+     * For a caller that only reads, accepts and discards. Leaves no API, which is correct: those
+     * three things never touch a network, and a caller that cannot generate should not have to
+     * supply the means to.
+     */
     public CandidateRepository(FlashcardsDatabase db) {
+        this(db, null, Clock.systemDefaultZone());
+    }
+
+    public CandidateRepository(FlashcardsDatabase db, FlashcardsApi api, Clock clock) {
         this.db = db;
-        this.cards = new CardRepository(db);
+        this.cards = new CardRepository(db, clock);
+        this.api = api;
+        this.clock = clock;
     }
 
     /**
@@ -30,6 +50,43 @@ public final class CandidateRepository {
             db.candidates().deleteAll();
             db.candidates().insertAll(candidates);
         });
+    }
+
+    /**
+     * Asks the server for a batch and stores it.
+     *
+     * <p>Foreground work, and deliberately not outbox work. This runs because a person pressed a
+     * button and is watching, so a failure is theirs to see and decide about rather than something
+     * queued and retried behind them. Nothing here touches {@code SyncEngine}, and a candidate
+     * never enters {@code pending_review}.
+     *
+     * <p>It is also the one thing in this app that cannot work offline. Everything else was built
+     * so that the radio being off changes nothing; a model has to be asked.
+     *
+     * @return how many candidates were stored
+     * @throws dev.vsdeadshot.flashcards.data.remote.ApiException if the server refused
+     * @throws IOException if the request never got there
+     */
+    public int generate(long topicId, String focus, int count) throws IOException {
+        GenerateRequestDto body = new GenerateRequestDto();
+        body.topicId = topicId;
+        body.focus = focus;
+        body.count = count;
+
+        GenerateResponseDto response = api.generate(body).execute().body();
+        List<CandidateEntity> batch = new ArrayList<>();
+        if (response != null && response.candidates != null) {
+            for (CandidateDto dto : response.candidates) {
+                CandidateEntity candidate = new CandidateEntity();
+                candidate.topicId = topicId;
+                candidate.front = dto.front;
+                candidate.back = dto.back;
+                candidate.generatedAt = clock.instant();
+                batch.add(candidate);
+            }
+        }
+        store(topicId, batch);
+        return batch.size();
     }
 
     public List<CandidateEntity> all() {

@@ -3,6 +3,8 @@ package dev.vsdeadshot.flashcards.data.remote;
 import dev.vsdeadshot.flashcards.data.remote.dto.CardDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.CardRequestDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.CreateTopicRequestDto;
+import dev.vsdeadshot.flashcards.data.remote.dto.GenerateRequestDto;
+import dev.vsdeadshot.flashcards.data.remote.dto.GenerateResponseDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.ReviewRequestDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.StatsDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.TopicDto;
@@ -11,6 +13,7 @@ import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.GET;
+import retrofit2.http.Headers;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
@@ -63,4 +66,15 @@ public interface FlashcardsApi {
 
     @GET("stats")
     Call<StatsDto> stats();
+
+    /**
+     * The one call here that can take a minute, because a model is writing while it waits.
+     *
+     * <p>The header is consumed by {@link TimeoutInterceptor} and never reaches the server. Sixty
+     * seconds sits above the backend's own forty-five second upstream timeout, so the server gives
+     * up first and this client is told 503 rather than left guessing what a socket timeout meant.
+     */
+    @Headers("X-Read-Timeout-Seconds: 60")
+    @POST("cards/generate")
+    Call<GenerateResponseDto> generate(@Body GenerateRequestDto body);
 }
