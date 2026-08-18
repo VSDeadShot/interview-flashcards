@@ -5,6 +5,8 @@ import dev.vsdeadshot.flashcards.service.DuplicateTopicException;
 import dev.vsdeadshot.flashcards.service.IdempotencyKeyReuseException;
 import dev.vsdeadshot.flashcards.service.NotFoundException;
 import org.springframework.http.HttpStatus;
+import dev.vsdeadshot.flashcards.ai.GenerationRefusedException;
+import dev.vsdeadshot.flashcards.ai.GenerationUnavailableException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -82,6 +84,29 @@ public class ApiExceptionHandler {
      * between the controller and the database — they raise this for bad input and nothing
      * else. Revisit if that stops being true.
      */
+    /**
+     * A rate limit, an upstream outage, a timeout, or no key configured. All of these are the same
+     * thing to a caller — not your fault, try again shortly — so they arrive as one exception and
+     * leave as one status.
+     */
+    @ExceptionHandler(GenerationUnavailableException.class)
+    public ProblemDetail handleGenerationUnavailable(GenerationUnavailableException e) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Generation unavailable", e.getMessage());
+    }
+
+    /**
+     * Distinct from unavailable deliberately: the generator answered, so an identical retry
+     * produces the same nothing and inviting one would be a lie.
+     *
+     * <p>{@code GenerationMisconfiguredException} is pointedly absent. Our own credential being
+     * rejected is not the caller's to fix and nothing about it should reach them, so it falls
+     * through to the unmapped 500 that carries no detail.
+     */
+    @ExceptionHandler(GenerationRefusedException.class)
+    public ProblemDetail handleGenerationRefused(GenerationRefusedException e) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Generation refused", e.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleValidationFailure(IllegalArgumentException e) {
         return problem(HttpStatus.BAD_REQUEST, "Validation failed", e.getMessage());

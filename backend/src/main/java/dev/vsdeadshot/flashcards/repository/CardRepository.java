@@ -16,6 +16,28 @@ public interface CardRepository extends JpaRepository<Card, Long> {
     Optional<Card> findByIdAndUserId(Long id, String userId);
 
     /**
+     * The fronts of a topic's live cards, newest first, for telling the generator what the deck
+     * already covers.
+     *
+     * <p>Fronts only, deliberately. A front is short and is the part that decides whether a new
+     * card is a duplicate; a back is the bulk of what the user wrote and has no business leaving
+     * this machine to prevent a repeat.
+     *
+     * <p>Archived cards are excluded: a retired card is not something a new one would duplicate,
+     * and keeping them would slowly poison the avoid-list with questions the user has rejected.
+     *
+     * <p>Bounded by {@code Limit} rather than returning everything, because the caller pays for
+     * this by the token and a mature topic would otherwise grow the prompt without end.
+     */
+    @Query("""
+            select c.front from Card c
+            where c.userId = :userId and c.topic.id = :topicId and c.archived = false
+            order by c.id desc
+            """)
+    List<String> findRecentFronts(
+            @Param("userId") String userId, @Param("topicId") Long topicId, Limit limit);
+
+    /**
      * The study queue: everything due on or before {@code today}, oldest due first.
      *
      * <p>The {@code archived = false} predicate is written out literally rather than

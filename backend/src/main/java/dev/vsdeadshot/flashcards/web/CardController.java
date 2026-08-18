@@ -1,9 +1,13 @@
 package dev.vsdeadshot.flashcards.web;
 
 import dev.vsdeadshot.flashcards.service.CardCreation;
+import dev.vsdeadshot.flashcards.service.CardGenerator;
 import dev.vsdeadshot.flashcards.service.CardService;
+import dev.vsdeadshot.flashcards.web.dto.CandidateResponse;
 import dev.vsdeadshot.flashcards.web.dto.CardRequest;
 import dev.vsdeadshot.flashcards.web.dto.CardResponse;
+import dev.vsdeadshot.flashcards.web.dto.GenerateRequest;
+import dev.vsdeadshot.flashcards.web.dto.GenerateResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -34,9 +38,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class CardController {
 
     private final CardService cards;
+    private final CardGenerator generator;
 
-    public CardController(CardService cards) {
+    public CardController(CardService cards, CardGenerator generator) {
         this.cards = cards;
+        this.generator = generator;
     }
 
     /**
@@ -94,5 +100,25 @@ public class CardController {
             @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
             @PathVariable long id) {
         cards.archive(userId, id);
+    }
+
+    /**
+     * Generates candidate cards for one of the caller's topics. Nothing is stored: a candidate
+     * becomes a card only when the caller posts it back, which is what makes reviewing before
+     * saving possible at all.
+     *
+     * <p>A {@code 200} rather than a {@code 201} for the same reason, and an action-shaped path
+     * like {@code POST /study/{cardId}/review} rather than one naming a resource that does not
+     * exist.
+     */
+    @PostMapping("/generate")
+    public GenerateResponse generate(
+            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @Valid @RequestBody GenerateRequest request) {
+        return new GenerateResponse(
+                generator.generate(userId, request.topicId(), request.focus(), request.count())
+                        .stream()
+                        .map(CandidateResponse::from)
+                        .toList());
     }
 }

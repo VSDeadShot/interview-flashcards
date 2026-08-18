@@ -155,6 +155,7 @@ returns `401` with no body.
 | `DELETE` | `/cards/{id}` | — | `204` (archives, does not hard-delete) |
 | `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first. `limit` defaults to 20 and is clamped to 100 |
 | `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?, clientReviewId?}` | `Card` with updated schedule |
+| `POST` | `/cards/generate` | `{topicId, focus?, count?}` | `200` + `{candidates: [{front, back}]}` |
 | `GET` | `/stats` | — | `Stats` |
 
 ### Archiving
@@ -242,6 +243,11 @@ request that made it.
 `name` is capped at 120 characters to match the column. `front` and `back` are `text` in the
 database and capped at 10,000 characters at the edge — not a schema limit but a guard, since
 a JSON body has no default size limit and a flashcard has no business being longer.
+
+`focus` is capped at 200 characters. `count` defaults to 8 and is treated exactly the way the
+queue's `limit` is — **clamped** above its maximum of 10, and a **`400`** at zero or below. Eight
+is chosen for review ergonomics rather than for the model: past ten a person skims and
+rubber-stamps, which defeats the only thing reviewing before saving is for.
 
 ### The queue
 
@@ -384,7 +390,13 @@ alongside the account, applied where `LocalDate.now(clock)` is called today.
 
 `400` validation · `401` bad/missing key · `404` unknown id · `409` duplicate topic slug,
 or a retry conflict — see [Retrying safely](#retrying-safely) for the `retryable` field that
-separates the two
+separates the two · `422` the generator answered with nothing
+usable · `503` the generator is rate-limited, down, or not configured
+
+`422` and `503` are deliberately different answers to a failed generation. A `503` invites a
+retry; a `422` would be lying if it did, because the same request will produce the same nothing.
+A rejected Gemini credential is neither — it is a `500`, since it is not the caller's to fix and
+nothing about it should be discoverable.
 
 ## Open questions
 
