@@ -454,6 +454,27 @@ doing billable work nobody will ever see.
 EOF
 ```
 
+
+### Corrections applied during Task 1
+
+Three things in the task above were wrong and were fixed while implementing it. Later tasks
+assume the corrected versions:
+
+- **Jackson is version 3, in the `tools.jackson` namespace**, not `com.fasterxml.jackson`. Boot 4
+  ships `spring-boot-starter-jackson` with `tools.jackson.core:jackson-databind:3.1.4`, and
+  Jackson 3 renamed `asText(...)` to `asString(...)`. Any later task parsing JSON on the backend
+  must import `tools.jackson.databind`.
+- **`output_text` is an SDK convenience, not a REST field.** A response is an interaction resource
+  holding a timeline; the text lives at `steps[].content[].text` on a `model_output` step. The
+  client walks that.
+- **The client must not set a request factory.** `MockRestServiceServer.bindTo` installs its own,
+  and overriding it makes every unit test call the real API. Transport tuning, including the 45 s
+  read timeout, moves to `GeminiConfiguration` in Task 2.
+
+Also: `Card`'s constructor takes `today` **before** `createdAt` —
+`Card(userId, topic, front, back, today, createdAt, clientCardId)`. Task 3's fixture had them
+swapped.
+
 ---
 
 ### Task 2: Configuration and the optional key
@@ -568,7 +589,9 @@ import dev.vsdeadshot.flashcards.ai.UnconfiguredGeminiClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import java.time.Duration;
 
 @Configuration
 @EnableConfigurationProperties(GeminiProperties.class)
@@ -580,9 +603,17 @@ public class GeminiConfiguration {
      */
     @Bean
     public GeminiClient geminiClient(RestClient.Builder builder, GeminiProperties properties) {
-        return properties.configured()
-                ? new GeminiRestClient(builder, properties.apiKey(), properties.model())
-                : new UnconfiguredGeminiClient();
+        if (!properties.configured()) {
+            return new UnconfiguredGeminiClient();
+        }
+        // Transport tuning lives here rather than in the client, so a test can bind a mock to a
+        // plain builder without the client quietly replacing its request factory. 45s sits under
+        // the Android client's 60s, so this side gives up first.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(45));
+        return new GeminiRestClient(
+                builder.requestFactory(factory), properties.apiKey(), properties.model());
     }
 }
 ```
@@ -800,8 +831,8 @@ class CardGeneratorTest extends EmbeddedPostgresTest {
         @DisplayName("passes the topic's existing fronts to the model")
         void passesExistingFronts() {
             cards.save(new dev.vsdeadshot.flashcards.domain.Card(
-                    USER, topic, "What is 3NF?", "Third normal form.", clock.instant(),
-                    java.time.LocalDate.now(clock), null));
+                    USER, topic, "What is 3NF?", "Third normal form.",
+                    java.time.LocalDate.now(clock), clock.instant(), null));
             RecordingClient client = new RecordingClient(List.of(new GeneratedCard("Q", "A")));
             CardGenerator generator = new CardGenerator(topics, cards, client);
 
