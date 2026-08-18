@@ -490,7 +490,7 @@ swapped.
 - Consumes: `GeminiClient`, `GenerationPrompt`, `GenerationUnavailableException` (Task 1).
 - Produces:
   - `record GeminiProperties(String apiKey, String model)` bound at prefix `flashcards.gemini`
-  - `class GeminiConfiguration` exposing `@Bean GeminiClient geminiClient(RestClient.Builder, GeminiProperties)`
+  - `class GeminiConfiguration` exposing `@Bean GeminiClient geminiClient(GeminiProperties)` — it constructs its own `RestClient.Builder`, because this classpath has no auto-configured one
   - `class UnconfiguredGeminiClient implements GeminiClient`
 
 - [ ] **Step 1: Write the failing test**
