@@ -5,9 +5,18 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!--
+        fitsSystemWindows because edge-to-edge is enforced from Android 15 for targetSdk 35 and
+        up: the window extends under the system bars and an app is expected to inset its own
+        content. BottomNavigationView already consumes the bottom inset itself, so only the top
+        was wrong - the toolbar drew over the status bar clock. Neither the build nor the test
+        suite reports it, because Robolectric composes no system bars; it was found by running
+        the app on an emulator and looking at the screen.
+    -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
