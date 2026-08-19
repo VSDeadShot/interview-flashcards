@@ -32,7 +32,8 @@ public final class CardListFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         addGenerateAction();
 
-        CardListAdapter adapter = new CardListAdapter(this::openEditor);
+        CardListViewModel model = new ViewModelProvider(this).get(CardListViewModel.class);
+        CardListAdapter adapter = new CardListAdapter(this::openEditor, decisions(model));
         RecyclerView list = view.findViewById(R.id.cards_list);
         list.setLayoutManager(new LinearLayoutManager(requireContext()));
         list.setAdapter(adapter);
@@ -41,15 +42,34 @@ public final class CardListFragment extends Fragment {
         view.findViewById(R.id.cards_new)
                 .setOnClickListener(clicked -> openEditor(CardEditorViewModel.NEW_CARD));
 
-        CardListViewModel model = new ViewModelProvider(this).get(CardListViewModel.class);
-        model.cards().observe(getViewLifecycleOwner(), cards -> {
-            adapter.submitList(cards);
+        model.items().observe(getViewLifecycleOwner(), rows -> {
+            adapter.submitList(rows);
             // Swapped rather than overlaid: an empty message sitting on top of a list that is
-            // about to arrive reads as a failure for the moment before the rows land.
-            boolean nothingToShow = cards.isEmpty();
+            // about to arrive reads as a failure for the moment before the rows land. A batch
+            // with no saved cards behind it still counts as something to show.
+            boolean nothingToShow = rows.isEmpty();
             empty.setVisibility(nothingToShow ? View.VISIBLE : View.GONE);
             list.setVisibility(nothingToShow ? View.GONE : View.VISIBLE);
         });
+    }
+
+    private CardListAdapter.OnCandidateDecision decisions(CardListViewModel model) {
+        return new CardListAdapter.OnCandidateDecision() {
+            @Override
+            public void onAccept(long candidateId) {
+                model.accept(candidateId);
+            }
+
+            @Override
+            public void onDiscard(long candidateId) {
+                model.discard(candidateId);
+            }
+
+            @Override
+            public void onDiscardAll() {
+                model.discardAll();
+            }
+        };
     }
 
     /**

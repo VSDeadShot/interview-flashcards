@@ -9,6 +9,7 @@ import android.app.Application;
 import android.os.Looper;
 import androidx.lifecycle.Observer;
 import androidx.room.Room;
+import dev.vsdeadshot.flashcards.data.CandidateRepository;
 import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.local.CardSummaryRow;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
@@ -17,6 +18,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import org.junit.After;
@@ -141,13 +143,13 @@ public class CardListViewModelTest {
     // ---- fixtures -----------------------------------------------------------------------------
 
     private void openScreen() {
-        model = new CardListViewModel(
-                RuntimeEnvironment.getApplication(), db, repository, DIRECT);
+        model = new CardListViewModel(RuntimeEnvironment.getApplication(), db, repository,
+                new CandidateRepository(db), DIRECT);
         // The constructor's own load has already been posted; idling first is what makes the
         // observer's first value the current one rather than an empty starting point.
         idle();
         recorder = new Recorder();
-        model.cards().observeForever(recorder);
+        model.items().observeForever(recorder);
         idle();
     }
 
@@ -160,18 +162,27 @@ public class CardListViewModelTest {
      */
     private List<CardSummaryRow> shown() {
         idle();
-        return recorder.value;
+        // The view model publishes one flattened list so the adapter can diff it; this test is
+        // about the deck, and every case here runs with no generated batch, so unwrapping the
+        // card rows keeps the assertions saying what they said before the band existed.
+        List<CardSummaryRow> cards = new ArrayList<>();
+        for (CardListItem item : recorder.value) {
+            if (item instanceof CardListItem.Card card) {
+                cards.add(card.card());
+            }
+        }
+        return cards;
     }
 
     private void idle() {
         shadowOf(Looper.getMainLooper()).idle();
     }
 
-    private static final class Recorder implements Observer<List<CardSummaryRow>> {
-        private List<CardSummaryRow> value;
+    private static final class Recorder implements Observer<List<CardListItem>> {
+        private List<CardListItem> value = List.of();
 
         @Override
-        public void onChanged(List<CardSummaryRow> updated) {
+        public void onChanged(List<CardListItem> updated) {
             value = updated;
         }
     }

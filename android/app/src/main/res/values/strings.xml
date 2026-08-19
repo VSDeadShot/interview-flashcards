@@ -105,4 +105,14 @@ Fix it and save to try again.</string>
         <item quantity="other">%d cards ready to review</item>
     </plurals>
 
+    <!-- Both quantities read the same. The plural exists so the number is formatted by the
+         platform rather than concatenated, which is what makes it translatable at all. -->
+    <plurals name="candidate_header">
+        <item quantity="one">%d generated — review before saving</item>
+        <item quantity="other">%d generated — review before saving</item>
+    </plurals>
+    <string name="candidate_accept">Add</string>
+    <string name="candidate_discard">Discard</string>
+    <string name="candidate_discard_all">Discard all</string>
+
 </resources>

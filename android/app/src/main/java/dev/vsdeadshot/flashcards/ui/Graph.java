@@ -96,15 +96,23 @@ public final class Graph {
     }
 
     /**
-     * The three-argument constructor, not the one the repository's own tests use:
-     * generating is the only thing in this app that has to ask a server, so this is the
-     * only accessor here that builds an API client.
-     *
-     * <p>Built per call, and called from a background thread, because
-     * {@code ApiKeyInterceptor} refuses a missing key at construction. A build with no
-     * key still runs every screen; it fails at the one action that needs one.
+     * Reading the band, accepting and discarding. No API client, which is what lets the card
+     * list work on a build with no key — none of those three things touches a network.
      */
     public static CandidateRepository candidates(Context context) {
+        return new CandidateRepository(database(context));
+    }
+
+    /**
+     * The same repository with the means to ask for a batch. Generating is the only thing in
+     * this app that has to reach a server, so this is the only accessor here that builds an
+     * API client.
+     *
+     * <p>Built per call, from a background thread, because {@code ApiKeyInterceptor} refuses a
+     * missing key at construction. A build with no key still runs every screen; it fails at the
+     * one action that needs one.
+     */
+    public static CandidateRepository generator(Context context) {
         return new CandidateRepository(
                 database(context), ApiClient.create(), Clock.systemDefaultZone());
     }

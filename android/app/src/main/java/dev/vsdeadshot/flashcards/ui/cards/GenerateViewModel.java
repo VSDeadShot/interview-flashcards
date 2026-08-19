@@ -61,7 +61,7 @@ public final class GenerateViewModel extends AndroidViewModel {
                 // constructs the API client, and ApiKeyInterceptor refuses a missing key at
                 // construction. A view model that did it eagerly would take the whole screen
                 // down on a build with no key rather than the one action that needs one.
-                int stored = Graph.candidates(getApplication()).generate(topicId, focus, count);
+                int stored = Graph.generator(getApplication()).generate(topicId, focus, count);
                 state.postValue(new GenerateState(false, stored, null));
             } catch (ApiException e) {
                 // 422 and 503 are separated on purpose: one invites a retry, the other says an

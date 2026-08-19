@@ -10,61 +10,189 @@ import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.color.MaterialColors;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.data.local.CandidateEntity;
 import dev.vsdeadshot.flashcards.data.local.CardSummaryRow;
 import java.util.Objects;
 
-/** The rows of the card list. */
+/**
+ * The rows of the card list: the generated band, then the deck.
+ *
+ * <p>Three view types in one adapter rather than a {@code ConcatAdapter}. The band and the list
+ * scroll as one thing and share a {@code RecyclerView}, and a concat would make the header's
+ * count depend on a second adapter's state — two objects that have to agree, which is the shape
+ * that eventually disagrees.
+ */
 public final class CardListAdapter
-        extends ListAdapter<CardSummaryRow, CardListAdapter.CardViewHolder> {
+        extends ListAdapter<CardListItem, RecyclerView.ViewHolder> {
+
+    private static final int VIEW_TYPE_CANDIDATE_HEADER = 0;
+    private static final int VIEW_TYPE_CANDIDATE = 1;
+    private static final int VIEW_TYPE_CARD = 2;
 
     /**
-     * Written out field by field rather than leaning on {@code equals}.
+     * Written out kind by kind rather than leaning on {@code equals}.
      *
-     * <p>{@link CardSummaryRow} is a Room-constructed plain class with no {@code equals}, and
-     * giving it one for the benefit of a list would put a definition of card equality somewhere
-     * nothing else in the app agrees with — the entities already treat two rows as equal on id
-     * alone. What matters here is narrower: whether the four things this row draws have changed.
+     * <p>{@link CardSummaryRow} and {@link CandidateEntity} are Room-constructed plain classes
+     * with no {@code equals}, and giving them one for the benefit of a list would put a
+     * definition of card equality somewhere nothing else in the app agrees with — the entities
+     * already treat two rows as equal on id alone. What matters here is narrower: whether the
+     * things this row draws have changed.
      */
-    private static final DiffUtil.ItemCallback<CardSummaryRow> DIFF =
+    private static final DiffUtil.ItemCallback<CardListItem> DIFF =
             new DiffUtil.ItemCallback<>() {
                 @Override
                 public boolean areItemsTheSame(
-                        @NonNull CardSummaryRow before, @NonNull CardSummaryRow after) {
-                    return before.id == after.id;
+                        @NonNull CardListItem before, @NonNull CardListItem after) {
+                    // Class first: a candidate id and a card id are separate sequences and can
+                    // collide, so an id-only comparison would call two unrelated rows the same.
+                    if (before.getClass() != after.getClass()) {
+                        return false;
+                    }
+                    if (before instanceof CardListItem.Candidate candidate) {
+                        return candidate.candidate().id
+                                == ((CardListItem.Candidate) after).candidate().id;
+                    }
+                    if (before instanceof CardListItem.Card card) {
+                        return card.card().id == ((CardListItem.Card) after).card().id;
+                    }
+                    // The header, of which there is only ever one, so it is always itself.
+                    return true;
                 }
 
                 @Override
                 public boolean areContentsTheSame(
-                        @NonNull CardSummaryRow before, @NonNull CardSummaryRow after) {
-                    return Objects.equals(before.front, after.front)
-                            && Objects.equals(before.topicName, after.topicName)
-                            && before.rejected() == after.rejected()
-                            && before.unsent() == after.unsent();
+                        @NonNull CardListItem before, @NonNull CardListItem after) {
+                    if (before instanceof CardListItem.Candidate candidate) {
+                        return sameContent(candidate.candidate(),
+                                ((CardListItem.Candidate) after).candidate());
+                    }
+                    if (before instanceof CardListItem.Card card) {
+                        return sameContent(card.card(), ((CardListItem.Card) after).card());
+                    }
+                    return ((CardListItem.Header) before).count()
+                            == ((CardListItem.Header) after).count();
                 }
             };
+
+    private static boolean sameContent(CandidateEntity before, CandidateEntity after) {
+        return Objects.equals(before.front, after.front)
+                && Objects.equals(before.back, after.back);
+    }
+
+    private static boolean sameContent(CardSummaryRow before, CardSummaryRow after) {
+        return Objects.equals(before.front, after.front)
+                && Objects.equals(before.topicName, after.topicName)
+                && before.rejected() == after.rejected()
+                && before.unsent() == after.unsent();
+    }
 
     /** What a tapped row does. Given rather than assumed, so the adapter owns no navigation. */
     public interface OnCardTapped {
         void onCardTapped(long localId);
     }
 
-    private final OnCardTapped onCardTapped;
+    /** The three decisions the band offers. */
+    public interface OnCandidateDecision {
+        void onAccept(long candidateId);
 
-    public CardListAdapter(OnCardTapped onCardTapped) {
+        void onDiscard(long candidateId);
+
+        void onDiscardAll();
+    }
+
+    private final OnCardTapped onCardTapped;
+    private final OnCandidateDecision onCandidateDecision;
+
+    public CardListAdapter(OnCardTapped onCardTapped, OnCandidateDecision onCandidateDecision) {
         super(DIFF);
         this.onCardTapped = onCardTapped;
+        this.onCandidateDecision = onCandidateDecision;
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        CardListItem item = getItem(position);
+        if (item instanceof CardListItem.Header) {
+            return VIEW_TYPE_CANDIDATE_HEADER;
+        }
+        return item instanceof CardListItem.Candidate ? VIEW_TYPE_CANDIDATE : VIEW_TYPE_CARD;
     }
 
     @NonNull
     @Override
-    public CardViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new CardViewHolder(LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_card, parent, false), onCardTapped);
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+        switch (viewType) {
+            case VIEW_TYPE_CANDIDATE_HEADER:
+                return new HeaderViewHolder(
+                        inflater.inflate(R.layout.item_candidate_header, parent, false),
+                        onCandidateDecision);
+            case VIEW_TYPE_CANDIDATE:
+                return new CandidateViewHolder(
+                        inflater.inflate(R.layout.item_candidate, parent, false),
+                        onCandidateDecision);
+            default:
+                return new CardViewHolder(
+                        inflater.inflate(R.layout.item_card, parent, false), onCardTapped);
+        }
     }
 
     @Override
-    public void onBindViewHolder(@NonNull CardViewHolder holder, int position) {
-        holder.bind(getItem(position));
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        CardListItem item = getItem(position);
+        if (item instanceof CardListItem.Header header) {
+            ((HeaderViewHolder) holder).bind(header.count());
+        } else if (item instanceof CardListItem.Candidate candidate) {
+            ((CandidateViewHolder) holder).bind(candidate.candidate());
+        } else {
+            ((CardViewHolder) holder).bind(((CardListItem.Card) item).card());
+        }
+    }
+
+    static final class HeaderViewHolder extends RecyclerView.ViewHolder {
+
+        private final TextView text;
+
+        HeaderViewHolder(@NonNull View row, OnCandidateDecision decisions) {
+            super(row);
+            text = row.findViewById(R.id.candidate_header_text);
+            row.findViewById(R.id.candidate_discard_all)
+                    .setOnClickListener(tapped -> decisions.onDiscardAll());
+        }
+
+        void bind(int count) {
+            text.setText(text.getResources()
+                    .getQuantityString(R.plurals.candidate_header, count, count));
+        }
+    }
+
+    static final class CandidateViewHolder extends RecyclerView.ViewHolder {
+
+        private final TextView front;
+        private final TextView back;
+        private final View accept;
+        private final View discard;
+
+        private final OnCandidateDecision decisions;
+
+        CandidateViewHolder(@NonNull View row, OnCandidateDecision decisions) {
+            super(row);
+            this.decisions = decisions;
+            front = row.findViewById(R.id.candidate_front);
+            back = row.findViewById(R.id.candidate_back);
+            accept = row.findViewById(R.id.candidate_accept);
+            discard = row.findViewById(R.id.candidate_discard);
+        }
+
+        void bind(CandidateEntity candidate) {
+            front.setText(candidate.front);
+            back.setText(candidate.back);
+            // Listeners are bound per candidate rather than once in the constructor: a recycled
+            // holder would otherwise still be pointing at the row it last drew, and accepting
+            // would add a card the user never looked at.
+            accept.setOnClickListener(tapped -> decisions.onAccept(candidate.id));
+            discard.setOnClickListener(tapped -> decisions.onDiscard(candidate.id));
+        }
     }
 
     static final class CardViewHolder extends RecyclerView.ViewHolder {
