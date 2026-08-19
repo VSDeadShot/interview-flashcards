@@ -6,6 +6,9 @@
 
     Raised, because these rows are not part of the deck yet and should not read as though they
     already are.
+
+    Tappable, which opens the editor on the candidate: the two buttons are the quick decisions,
+    and the row itself is the way to correct the text before accepting it.
 -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -13,6 +16,8 @@
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="12dp"
     android:layout_marginVertical="4dp"
+    android:clickable="true"
+    android:focusable="true"
     app:cardElevation="0dp"
     app:strokeColor="?attr/colorOutlineVariant"
     app:strokeWidth="1dp">

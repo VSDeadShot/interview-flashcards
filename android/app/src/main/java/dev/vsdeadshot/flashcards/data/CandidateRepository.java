@@ -93,6 +93,11 @@ public final class CandidateRepository {
         return db.candidates().all();
     }
 
+    /** One candidate, or null once somebody has accepted or discarded it. */
+    public CandidateEntity find(long candidateId) {
+        return db.candidates().find(candidateId);
+    }
+
     /**
      * Turns a candidate into a card by the ordinary authoring path, so from this moment it is an
      * ordinary unsynced card: it carries a client id, the outbox offers it as a pending create,
@@ -111,6 +116,26 @@ public final class CandidateRepository {
                 return null;
             }
             CardEntity created = cards.create(candidate.topicId, candidate.front, candidate.back);
+            db.candidates().delete(candidateId);
+            return created;
+        });
+    }
+
+    /**
+     * Accepting with the user's corrections rather than the model's text.
+     *
+     * <p>One transaction, for the same reason {@link #accept} is: a card written without its
+     * candidate removed would be offered for review a second time, and nothing on screen would
+     * explain why something already accepted had come back.
+     *
+     * @return the card, or null if there was no such candidate
+     */
+    public CardEntity acceptEdited(long candidateId, long topicId, String front, String back) {
+        return db.runInTransaction(() -> {
+            if (db.candidates().find(candidateId) == null) {
+                return null;
+            }
+            CardEntity created = cards.create(topicId, front, back);
             db.candidates().delete(candidateId);
             return created;
         });

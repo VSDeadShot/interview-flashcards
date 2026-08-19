@@ -91,8 +91,10 @@ public final class CardListAdapter
         void onCardTapped(long localId);
     }
 
-    /** The three decisions the band offers. */
+    /** What the band offers: open one to correct it, or decide about it where it sits. */
     public interface OnCandidateDecision {
+        void onOpen(long candidateId);
+
         void onAccept(long candidateId);
 
         void onDiscard(long candidateId);
@@ -192,6 +194,7 @@ public final class CardListAdapter
             // would add a card the user never looked at.
             accept.setOnClickListener(tapped -> decisions.onAccept(candidate.id));
             discard.setOnClickListener(tapped -> decisions.onDiscard(candidate.id));
+            itemView.setOnClickListener(tapped -> decisions.onOpen(candidate.id));
         }
     }
 

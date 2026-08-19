@@ -24,6 +24,7 @@ import java.util.List;
 public final class CardEditorFragment extends Fragment {
 
     public static final String ARG_CARD_ID = "cardId";
+    public static final String ARG_CANDIDATE_ID = "candidateId";
     public static final String ARG_TITLE = "title";
 
     private CardEditorViewModel model;
@@ -37,7 +38,10 @@ public final class CardEditorFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         long cardId = requireArguments().getLong(ARG_CARD_ID, CardEditorViewModel.NEW_CARD);
-        model = new ViewModelProvider(this, factoryFor(cardId)).get(CardEditorViewModel.class);
+        long candidateId =
+                requireArguments().getLong(ARG_CANDIDATE_ID, CardEditorViewModel.NO_CANDIDATE);
+        model = new ViewModelProvider(this, factoryFor(cardId, candidateId))
+                .get(CardEditorViewModel.class);
 
         MaterialAutoCompleteTextView topicField = view.findViewById(R.id.editor_topic);
         topicField.setOnItemClickListener((parent, clicked, position, id) -> chosenTopic = position);
@@ -88,11 +92,15 @@ public final class CardEditorFragment extends Fragment {
         if (chosenTopic < 0) {
             // Only on the first draw. Rewriting the fields on every state change would undo
             // whatever had been typed since.
-            chosenTopic = card == null ? 0 : indexOfTopic(card.topicId);
+            //
+            // Read through the state rather than off the card, so a candidate prefills the same
+            // way an edit does and this screen never learns which of the two it is showing.
+            chosenTopic = indexOfTopic(state.topicId());
             topicField.setText(topicNames()[chosenTopic], false);
-            if (card != null) {
-                ((TextInputEditText) view.findViewById(R.id.editor_front)).setText(card.front);
-                ((TextInputEditText) view.findViewById(R.id.editor_back)).setText(card.back);
+            if (state.front() != null) {
+                ((TextInputEditText) view.findViewById(R.id.editor_front))
+                        .setText(state.front());
+                ((TextInputEditText) view.findViewById(R.id.editor_back)).setText(state.back());
             }
         }
 
@@ -155,8 +163,9 @@ public final class CardEditorFragment extends Fragment {
                 return i;
             }
         }
-        // The card's topic is not cached — deleted on the server, or not pulled yet. Saving has
-        // to pick something the server will accept, and the first topic is as good as any.
+        // Either the topic is not cached — deleted on the server, or not pulled yet — or there
+        // is no topic at all, which is a blank editor. Saving has to pick something the server
+        // will accept, and the first topic is as good as any.
         return 0;
     }
 
@@ -164,13 +173,14 @@ public final class CardEditorFragment extends Fragment {
         return ((TextInputEditText) view.findViewById(id)).getText().toString();
     }
 
-    private ViewModelProvider.Factory factoryFor(long cardId) {
+    private ViewModelProvider.Factory factoryFor(long cardId, long candidateId) {
         return new ViewModelProvider.Factory() {
             @NonNull
             @Override
             @SuppressWarnings("unchecked")
             public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
-                return (T) new CardEditorViewModel(requireActivity().getApplication(), cardId);
+                return (T) new CardEditorViewModel(
+                        requireActivity().getApplication(), cardId, candidateId);
             }
         };
     }

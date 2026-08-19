@@ -13,6 +13,7 @@ import androidx.room.Room;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 import androidx.work.testing.WorkManagerTestInitHelper;
+import dev.vsdeadshot.flashcards.data.CandidateRepository;
 import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
@@ -229,8 +230,8 @@ public class CardEditorViewModelTest {
     // ---- fixtures ---------------------------------------------------------------------------
 
     private void open(long cardId) {
-        model = new CardEditorViewModel(
-                RuntimeEnvironment.getApplication(), repository, DIRECT, cardId);
+        model = new CardEditorViewModel(RuntimeEnvironment.getApplication(), repository,
+                new CandidateRepository(db), DIRECT, cardId, CardEditorViewModel.NO_CANDIDATE);
         idle();
     }
 

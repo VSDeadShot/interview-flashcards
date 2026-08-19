@@ -47,6 +47,13 @@
             android:defaultValue="0L"
             app:argType="long" />
 
+        <!-- Zero means "not a candidate", the same convention cardId uses and for the same
+             reason. The two are never both set: a candidate has no card until it is accepted. -->
+        <argument
+            android:name="candidateId"
+            android:defaultValue="0L"
+            app:argType="long" />
+
         <argument
             android:name="title"
             app:argType="string" />

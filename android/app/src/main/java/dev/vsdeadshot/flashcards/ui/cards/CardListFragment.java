@@ -56,6 +56,11 @@ public final class CardListFragment extends Fragment {
     private CardListAdapter.OnCandidateDecision decisions(CardListViewModel model) {
         return new CardListAdapter.OnCandidateDecision() {
             @Override
+            public void onOpen(long candidateId) {
+                openCandidate(candidateId);
+            }
+
+            @Override
             public void onAccept(long candidateId) {
                 model.accept(candidateId);
             }
@@ -99,6 +104,21 @@ public final class CardListFragment extends Fragment {
                 return true;
             }
         }, getViewLifecycleOwner(), Lifecycle.State.STARTED);
+    }
+
+    /**
+     * The same destination as a saved card, carrying the other id.
+     *
+     * <p>Titled a third way, which costs nothing: the destination's label is already filled from
+     * its arguments, so "New card", "Edit card" and this share one screen and one back stack
+     * entry rather than needing a fourth destination.
+     */
+    private void openCandidate(long candidateId) {
+        Bundle args = new Bundle();
+        args.putLong(CardEditorFragment.ARG_CANDIDATE_ID, candidateId);
+        args.putString(CardEditorFragment.ARG_TITLE, getString(R.string.editor_generated));
+        NavHostFragment.findNavController(this)
+                .navigate(R.id.action_cardList_to_cardEditor, args);
     }
 
     private void openEditor(long localId) {

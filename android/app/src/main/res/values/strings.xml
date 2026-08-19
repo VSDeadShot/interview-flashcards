@@ -68,6 +68,9 @@
 
     <string name="editor_new">New card</string>
     <string name="editor_edit">Edit card</string>
+    <!-- Neither "New card" nor "Edit card": the text came from somewhere, and saving
+         adds it to the deck rather than changing something already in it. -->
+    <string name="editor_generated">Add generated card</string>
     <string name="editor_topic">Topic</string>
     <string name="editor_front">Question</string>
     <string name="editor_back">Answer</string>

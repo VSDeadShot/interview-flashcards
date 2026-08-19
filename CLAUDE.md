@@ -10,7 +10,7 @@ Interview Prep Flashcards — a spaced-repetition flashcard app for CS fundament
 
 `docs/api-contract.md` is the spec both halves are written against — schema, endpoints, payloads, and the SM-2 golden vectors. Read it before changing the data model or adding an endpoint, and update it in the same change when the contract moves.
 
-**Current state**: both halves are feature-complete against `docs/api-contract.md`. The backend implements every endpoint in that document's table and serves it over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and all four UI destinations — study, the card list, the editor and stats — each reading the cache through the same seam. **It has been run for real**, on an emulator against the live backend: a cold start pulled topics, cards and stats into the cache; a review answered on screen reached `review_log` in Postgres with the arithmetic the golden vectors specify; and a review answered in airplane mode sat in `pending_review` with its locally predicted schedule already on the card, then reached the server on reconnect carrying the same `clientReviewId` it was minted with. The AVD is `flashcards_api36` — Pixel 8, API 36, `google_apis`, x86_64 — created with the `cmdline-tools` `sdkmanager`/`avdmanager`, which are not part of a stock Android Studio SDK install and had to be added.
+**Current state**: both halves are feature-complete against `docs/api-contract.md`, including AI-assisted card generation — the backend calls Gemini behind `POST /cards/generate` with the key read from configuration and never sent anywhere near a client, and the Android side offers it as a bottom sheet on the card list, holds the batch in a local `candidate` table, and lets each one be added, corrected first, or discarded. **That path has not yet been run against a real Gemini key**: every test passes with the endpoint unconfigured, which exercises the `503` branch rather than a generation. The backend implements every endpoint in that document's table and serves it over HTTP behind the API-key filter. The Android client has its local cache, its outbox, its copy of the scheduler, its remote layer, the sync engine that drives them, the schedule that runs it, offline authoring, editing and archiving that all sync, and all four UI destinations — study, the card list, the editor and stats — each reading the cache through the same seam. **It has been run for real**, on an emulator against the live backend: a cold start pulled topics, cards and stats into the cache; a review answered on screen reached `review_log` in Postgres with the arithmetic the golden vectors specify; and a review answered in airplane mode sat in `pending_review` with its locally predicted schedule already on the card, then reached the server on reconnect carrying the same `clientReviewId` it was minted with. The AVD is `flashcards_api36` — Pixel 8, API 36, `google_apis`, x86_64 — created with the `cmdline-tools` `sdkmanager`/`avdmanager`, which are not part of a stock Android Studio SDK install and had to be added.
 
 ## Commands
 
@@ -243,6 +243,40 @@ thing this feature could do, and it is `StatsFragmentTest` that holds that line.
 breakdown is inflated into a plain `LinearLayout` rather than drawn by a `RecyclerView`: the rows
 scroll with the figures above them, a `RecyclerView` nested in a scrolling parent has to be told to
 stop recycling before it will lay out at all, and the list is bounded by the number of topics.
+
+**Generation is the one thing here that is not offline-first, and not outbox work.** `POST
+/cards/generate` runs because a person pressed a button and is watching, so its failure is theirs
+to see and decide about rather than something queued and retried behind them — nothing about it
+touches `SyncEngine` or `ApiException.disposition()`. Everything else that talks to the server
+does go through that path, which is why the exception needs stating. Candidates live in their own
+table rather than as a flag on `card`, because a candidate must never reach the study queue, the
+outbox, or a pull's delete-scope. Accepting one writes through the ordinary authoring path, so
+from that moment it is an ordinary unsynced card and everything already true of those applies.
+
+**`Graph` has two accessors for one repository, and the split is load-bearing.**
+`Graph.candidates` reads the band, accepts and discards without an API client; `Graph.generator`
+is the only accessor in the app that builds one. `ApiKeyInterceptor` refuses a blank key at
+construction, so a single accessor would take the whole card list down on a build with no
+`flashcards.apiKey` — the build CLAUDE.md deliberately keeps runnable. For the same reason
+`GenerateViewModel` builds its repository inside the background task rather than holding it as a
+field: the failure belongs to the one action that needs a key.
+
+**The editor is one destination serving three titles and two sources.** `android:label` is
+`{title}`, so "New card", "Edit card" and "Add generated card" cost neither a second destination
+nor Safe Args; `cardId` and `candidateId` sit side by side as arguments and are never both set.
+`CardEditorViewModel` hides which of the two it loaded behind `EditorState.front()`, `.back()`
+and `.topicId()`, so the fragment does not learn the difference. That was the cost this design
+accepted rather than adding a fourth destination, and it is written down here because a view
+model with two sources is otherwise the kind of thing that looks like an accident.
+
+**The card list is one adapter with three view types, fed one flattened list.** A `ConcatAdapter`
+would make the band's count depend on a second adapter's state, and two lists held side by side
+would give up `ListAdapter`'s diffing on a screen that rebuilds on every Room invalidation.
+`CardListItem` is sealed to write down that `Header`, `Candidate` and `Card` are the whole set —
+it buys no exhaustiveness check, because `:app` compiles at **Java 17** where pattern matching for
+`switch` is still preview. That is worth knowing before reaching for one: `:app` is Java 17
+bytecode while the backend is Java 21, so language features do not transfer between the halves
+even though both are Java.
 
 ### Android tests
 
