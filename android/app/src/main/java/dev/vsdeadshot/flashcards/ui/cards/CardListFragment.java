@@ -1,10 +1,15 @@
 package dev.vsdeadshot.flashcards.ui.cards;
 
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.MenuProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -25,6 +30,8 @@ public final class CardListFragment extends Fragment {
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        addGenerateAction();
+
         CardListAdapter adapter = new CardListAdapter(this::openEditor);
         RecyclerView list = view.findViewById(R.id.cards_list);
         list.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -43,6 +50,35 @@ public final class CardListFragment extends Fragment {
             empty.setVisibility(nothingToShow ? View.VISIBLE : View.GONE);
             list.setVisibility(nothingToShow ? View.GONE : View.VISIBLE);
         });
+    }
+
+    /**
+     * Puts the generate action on the toolbar for as long as this screen is on it.
+     *
+     * <p>Not the floating action button, which means "new card" and should keep meaning
+     * exactly one thing. The toolbar already hosts the sync action, so a verb up there
+     * has precedent, and it leaves the FAB's meaning alone.
+     *
+     * <p>Scoped to STARTED so the item is added and removed with the screen rather than
+     * lingering on the other two tabs, which have nothing to generate for.
+     */
+    private void addGenerateAction() {
+        requireActivity().addMenuProvider(new MenuProvider() {
+            @Override
+            public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+                inflater.inflate(R.menu.cards_menu, menu);
+            }
+
+            @Override
+            public boolean onMenuItemSelected(@NonNull MenuItem item) {
+                if (item.getItemId() != R.id.action_generate) {
+                    return false;
+                }
+                GenerateSheet.newInstance()
+                        .show(getParentFragmentManager(), GenerateSheet.TAG);
+                return true;
+            }
+        }, getViewLifecycleOwner(), Lifecycle.State.STARTED);
     }
 
     private void openEditor(long localId) {

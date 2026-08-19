@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    A sheet rather than a destination. Generating is a detour from the card list and ends back
+    on it, and a screen of its own would need a back stack entry for something that is over in
+    one tap.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="@string/generate_title"
+        android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/generate_topic_layout"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/generate_topic">
+
+        <!-- Chosen from the cache, never typed: the request carries a topic id, and a name the
+             deck does not hold has no id to send. -->
+        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+            android:id="@+id/generate_topic"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="none" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/generate_focus">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/generate_focus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:imeOptions="actionNext"
+            android:inputType="textCapSentences"
+            android:maxLength="200" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/generate_count">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/generate_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:imeOptions="actionDone"
+            android:inputType="number"
+            android:maxLength="2" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!--
+        In the sheet, not a snackbar. Every one of these failures is answered by doing something
+        with the inputs above - try again, narrow the focus, turn the radio on - so the inputs
+        have to still be on screen when the message arrives.
+    -->
+    <TextView
+        android:id="@+id/generate_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorError"
+        android:visibility="gone" />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/generate_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/generate_go"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/generate_go" />
+
+</LinearLayout>

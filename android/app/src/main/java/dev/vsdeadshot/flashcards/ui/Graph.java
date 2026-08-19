@@ -2,11 +2,14 @@ package dev.vsdeadshot.flashcards.ui;
 
 import android.content.Context;
 import androidx.annotation.VisibleForTesting;
+import dev.vsdeadshot.flashcards.data.CandidateRepository;
 import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.ReviewRepository;
 import dev.vsdeadshot.flashcards.data.StatsRepository;
 import dev.vsdeadshot.flashcards.data.StudyRepository;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
+import dev.vsdeadshot.flashcards.data.remote.ApiClient;
+import java.time.Clock;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -90,5 +93,19 @@ public final class Graph {
 
     public static CardRepository cards(Context context) {
         return new CardRepository(database(context));
+    }
+
+    /**
+     * The three-argument constructor, not the one the repository's own tests use:
+     * generating is the only thing in this app that has to ask a server, so this is the
+     * only accessor here that builds an API client.
+     *
+     * <p>Built per call, and called from a background thread, because
+     * {@code ApiKeyInterceptor} refuses a missing key at construction. A build with no
+     * key still runs every screen; it fails at the one action that needs one.
+     */
+    public static CandidateRepository candidates(Context context) {
+        return new CandidateRepository(
+                database(context), ApiClient.create(), Clock.systemDefaultZone());
     }
 }

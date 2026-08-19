@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Deliberately not the floating action button. That means "new card" and should keep meaning
+    exactly one thing; the toolbar already hosts the sync action, so a verb up there has
+    precedent. This menu is the card list's alone and is added on top of the activity's.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_generate"
+        android:icon="@drawable/ic_generate"
+        android:title="@string/generate_title"
+        app:showAsAction="ifRoom" />
+
+</menu>
