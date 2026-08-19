@@ -37,7 +37,7 @@ class GeminiConfigurationTest extends EmbeddedPostgresTest {
     @Test
     @DisplayName("defaults the model so a rename is a config change, not a code change")
     void defaultsTheModel() {
-        assertEquals("gemini-3.7-flash", properties.model(),
+        assertEquals("gemini-3.6-flash", properties.model(),
                 "an absent model property should still leave a usable default");
     }
 }
