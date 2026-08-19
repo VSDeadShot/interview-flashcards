@@ -12,8 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * The suite runs with no GEMINI_API_KEY set, which is the whole point: the application has to
- * start and serve every other endpoint without one.
+ * The suite runs with no FLASHCARDS_GEMINI_API_KEY set, which is the whole point: the application
+ * has to start and serve every other endpoint without one. Which variable that is, and which
+ * plausible-looking one does nothing, is pinned by {@link GeminiPropertiesBindingTest}.
  */
 @DisplayName("Gemini configuration")
 class GeminiConfigurationTest extends EmbeddedPostgresTest {

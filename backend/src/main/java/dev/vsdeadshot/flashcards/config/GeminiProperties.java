@@ -10,8 +10,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * is misconfigured. See {@code UnconfiguredGeminiClient} for why that distinction is worth having.
  *
  * @param apiKey the Gemini credential, or null when generation is not enabled. Binds from
- *               {@code GEMINI_API_KEY} by relaxed binding and is never declared in a properties
- *               file, for the same reason the shared API key is not.
+ *               {@code FLASHCARDS_GEMINI_API_KEY} — the whole prefix, since the property is
+ *               {@code flashcards.gemini.api-key}. Not {@code GEMINI_API_KEY}, which reaches
+ *               nothing and leaves generation quietly off; {@code GeminiPropertiesBindingTest}
+ *               pins both halves of that. Never declared in a properties file, for the same
+ *               reason the shared API key is not.
  * @param model  which model to ask. Defaulted rather than required, so a model rename is a
  *               configuration change and not a code change.
  */
