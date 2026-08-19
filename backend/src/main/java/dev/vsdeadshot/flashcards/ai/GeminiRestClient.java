@@ -53,9 +53,19 @@ public class GeminiRestClient implements GeminiClient {
                     .body(request(prompt))
                     .retrieve()
                     .body(String.class);
-        } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden e) {
+        } catch (HttpClientErrorException.TooManyRequests e) {
+            // The one 4xx that is a bad moment rather than a bad request. Caught before the
+            // block below, which would otherwise call a rate limit permanent.
+            throw new GenerationUnavailableException("The card generator did not answer.");
+        } catch (HttpClientErrorException e) {
+            // Every other 4xx means this request was wrong, and nobody holding the phone can
+            // make it right - a stale key, a model that no longer exists, a body this client
+            // built badly. Verified against the live endpoint: an invalid key is answered
+            // 400 INVALID_ARGUMENT, not 401, so keying this on 401/403 alone reported the most
+            // likely misconfiguration there is as a temporary outage and invited retries for as
+            // long as the key stayed wrong.
             throw new GenerationMisconfiguredException(
-                    "The card generator rejected our credentials.");
+                    "The card generator rejected our request.");
         } catch (RestClientException e) {
             // Deliberately drops the cause's message: an upstream body can echo request content,
             // and this message reaches a log.
