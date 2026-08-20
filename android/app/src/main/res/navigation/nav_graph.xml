@@ -5,8 +5,10 @@
     android:id="@+id/nav_graph"
     app:startDestination="@id/studyFragment">
 
-    <!-- Three peers with no actions between them: the bottom bar is the only way from one to
-         another, and each is a top-level destination, so none of them shows an up button. -->
+    <!-- Three peers, all top level, so none of them shows an up button. The bottom bar is how
+         somebody moves between them, and switching tab carries nothing. The one action between
+         two of them is a different thing: a drill-in from a stats row into the cards that row
+         counts, which is why it is the only one that carries an argument. -->
 
     <fragment
         android:id="@+id/studyFragment"
@@ -19,6 +21,17 @@
         android:name="dev.vsdeadshot.flashcards.ui.cards.CardListFragment"
         android:label="@string/nav_cards"
         tools:layout="@layout/fragment_card_list">
+
+        <!-- Which topic the list is scoped to. 0 means all of them — the same convention cardId
+             uses below and for the same reason: local ids run downwards from zero and server ids
+             start at 1, so zero is the one value that is never a real id.
+
+             It has a default rather than being required, because the bottom bar navigates here
+             with no arguments at all. A required argument would make the tab itself throw. -->
+        <argument
+            android:name="topicId"
+            android:defaultValue="0L"
+            app:argType="long" />
 
         <action
             android:id="@+id/action_cardList_to_cardEditor"
@@ -64,6 +77,22 @@
         android:id="@+id/statsFragment"
         android:name="dev.vsdeadshot.flashcards.ui.stats.StatsFragment"
         android:label="@string/nav_stats"
-        tools:layout="@layout/fragment_stats" />
+        tools:layout="@layout/fragment_stats">
+
+        <!--
+            Tapping a topic row opens the cards that row counts. This crosses top-level
+            destinations, which is the part worth writing down: the bottom bar's checked item
+            moves to Cards on its own, because NavigationUI listens for destination changes
+            rather than for taps — so the indicator follows without anything here moving it, and
+            it cannot end up lit on Stats while the card list is on screen.
+
+            Back returns here rather than to whatever was last on the Cards tab, which is what
+            one shared back stack already gives and is the behaviour this drill-in wants.
+        -->
+        <action
+            android:id="@+id/action_stats_to_cardList"
+            app:destination="@id/cardListFragment" />
+
+    </fragment>
 
 </navigation>

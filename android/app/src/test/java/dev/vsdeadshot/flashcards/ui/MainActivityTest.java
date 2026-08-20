@@ -7,7 +7,9 @@ import static org.junit.Assert.assertTrue;
 import android.app.Application;
 import androidx.appcompat.widget.Toolbar;
 import androidx.room.Room;
+import androidx.navigation.NavArgument;
 import androidx.navigation.NavController;
+import androidx.navigation.NavDestination;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
@@ -88,6 +90,28 @@ public class MainActivityTest {
         bottomNav.setSelectedItemId(R.id.cardListFragment);
 
         assertEquals(R.id.cardListFragment, currentDestination());
+    }
+
+    /**
+     * The one edge between two top-level destinations, and the argument it carries.
+     *
+     * <p>Neither is checked by the build. A missing action throws only when something tries to
+     * navigate along it, and a missing argument is worse than that: it reads as its default, so
+     * a topic drill-in would quietly show every card instead of failing.
+     */
+    @Test
+    public void aStatsRowCanDrillIntoTheCardsItCounts() {
+        NavDestination stats = navController().getGraph().findNode(R.id.statsFragment);
+        assertNotNull("a tapped topic row has nowhere to go without it",
+                stats.getAction(R.id.action_stats_to_cardList));
+
+        NavDestination cards = navController().getGraph().findNode(R.id.cardListFragment);
+        NavArgument topicId = cards.getArguments().get("topicId");
+        assertNotNull("the list cannot arrive filtered without being told what to", topicId);
+        // The bottom bar navigates here with no arguments at all, so this one has to have a
+        // default or tapping the Cards tab would throw.
+        assertEquals("zero is the topic id that means all of them",
+                (Object) 0L, topicId.getDefaultValue());
     }
 
     @Test
