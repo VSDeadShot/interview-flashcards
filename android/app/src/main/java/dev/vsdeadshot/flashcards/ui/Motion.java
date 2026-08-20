@@ -9,9 +9,11 @@ import androidx.annotation.NonNull;
 import androidx.dynamicanimation.animation.DynamicAnimation;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
+import androidx.fragment.app.Fragment;
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator;
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator;
+import com.google.android.material.transition.MaterialFadeThrough;
 
 /**
  * The motion every screen shares: three curves, one press, and one entrance.
@@ -138,6 +140,21 @@ public final class Motion {
                 .setStartDelay(0L)
                 .setInterpolator(new OvershootInterpolator(POP_TENSION))
                 .start();
+    }
+
+    /**
+     * How one of the three top-level destinations arrives and leaves.
+     *
+     * <p>A fade through rather than a slide. The three are peers with no order between them, so
+     * a slide would claim that one sits to the left of another — which is true of the bar, since
+     * it has to put them somewhere, and is not true of the app.
+     *
+     * <p>Here rather than copied into three fragments for the reason this class exists: three
+     * copies of a decision are three chances for one of them to be changed alone.
+     */
+    public static void peerDestination(@NonNull Fragment fragment) {
+        fragment.setEnterTransition(new MaterialFadeThrough());
+        fragment.setExitTransition(new MaterialFadeThrough());
     }
 
     /** Density-independent pixels, resolved against the view actually being animated. */

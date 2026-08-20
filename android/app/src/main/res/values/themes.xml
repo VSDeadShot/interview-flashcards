@@ -51,7 +51,10 @@
         <item name="liftOnScroll">false</item>
     </style>
 
+    <!-- Transparent rather than the same colour as the bar it sits in. Two views painting one
+         ground is two places to change it, and only one of them would get changed. -->
     <style name="Widget.Flashcards.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@android:color/transparent</item>
         <item name="titleTextAppearance">@style/TextAppearance.Flashcards.ScreenTitle</item>
     </style>
 

@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.ui.Motion;
 import dev.vsdeadshot.flashcards.data.StudyRepository.StudyView;
 import dev.vsdeadshot.flashcards.ui.study.StudyViewModel.StudyState;
 
@@ -31,6 +32,14 @@ public final class StudyFragment extends Fragment {
 
     public StudyFragment() {
         super(R.layout.fragment_study);
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Set here rather than in onViewCreated: a fragment's transitions are read when
+        // the transaction that shows it is executed, which is before its view exists.
+        Motion.peerDestination(this);
     }
 
     @Override

@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.ui.Motion;
 import dev.vsdeadshot.flashcards.data.StatsRepository.StatsView;
 import dev.vsdeadshot.flashcards.data.local.TopicStatsRow;
 import java.text.NumberFormat;
@@ -33,6 +34,14 @@ public final class StatsFragment extends Fragment {
 
     public StatsFragment() {
         super(R.layout.fragment_stats);
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Set here rather than in onViewCreated: a fragment's transitions are read when
+        // the transaction that shows it is executed, which is before its view exists.
+        Motion.peerDestination(this);
     }
 
     @Override

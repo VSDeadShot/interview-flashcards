@@ -3,8 +3,11 @@ package dev.vsdeadshot.flashcards.ui;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.robolectric.Shadows.shadowOf;
 
 import android.app.Application;
+import android.os.Bundle;
+import android.os.Looper;
 import androidx.appcompat.widget.Toolbar;
 import androidx.room.Room;
 import androidx.navigation.NavArgument;
@@ -112,6 +115,30 @@ public class MainActivityTest {
         // default or tapping the Cards tab would throw.
         assertEquals("zero is the topic id that means all of them",
                 (Object) 0L, topicId.getDefaultValue());
+    }
+
+    /**
+     * The editor is the one destination outside the bottom bar's menu, so NavigationUI finds no
+     * item to check and leaves the last one checked - which is Cards, and which is right, since
+     * Cards is where up goes.
+     *
+     * <p>Pinned because nothing about it would fail the build. Adding the editor to that menu, or
+     * splitting the graph into a stack per tab, would move the indicator or clear it, and either
+     * would have the bar claiming to be somewhere the app is not.
+     */
+    @Test
+    public void theCardEditorLeavesTheCardsTabLit() {
+        BottomNavigationView bottomNav = activity.findViewById(R.id.bottom_nav);
+        bottomNav.setSelectedItemId(R.id.cardListFragment);
+
+        Bundle args = new Bundle();
+        args.putString("title", "New card");
+        navController().navigate(R.id.action_cardList_to_cardEditor, args);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(R.id.cardEditorFragment, currentDestination());
+        assertEquals("nothing deselects, because nothing in the bar matches the editor",
+                R.id.cardListFragment, bottomNav.getSelectedItemId());
     }
 
     @Test

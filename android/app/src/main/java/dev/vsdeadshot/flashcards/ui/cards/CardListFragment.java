@@ -15,6 +15,7 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.ui.Motion;
 
 /**
  * Every card there is, grouped by topic, with the ones the server has not caught up on marked.
@@ -26,6 +27,14 @@ public final class CardListFragment extends Fragment {
 
     public CardListFragment() {
         super(R.layout.fragment_card_list);
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Set here rather than in onViewCreated: a fragment's transitions are read when
+        // the transaction that shows it is executed, which is before its view exists.
+        Motion.peerDestination(this);
     }
 
     @Override
