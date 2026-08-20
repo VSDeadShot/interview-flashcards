@@ -1,88 +1,292 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/study_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:paddingHorizontal="20dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="18dp">
 
-    <TextView
-        android:id="@+id/study_due_count"
+    <!-- How much is left, and what it is about. Hidden with the card rather than left showing a
+         zero, because the empty state below says the same thing better. -->
+    <LinearLayout
+        android:id="@+id/study_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textAppearance="?attr/textAppearanceLabelLarge"
-        android:textColor="?attr/colorPrimary" />
+        android:orientation="vertical"
+        android:paddingHorizontal="4dp"
+        android:paddingBottom="14dp">
 
-    <TextView
-        android:id="@+id/study_topic"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:textAppearance="?attr/textAppearanceBodySmall" />
+        <TextView
+            android:id="@+id/study_due_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp"
+            tools:text="4 cards due" />
 
-    <!-- The card scrolls, the buttons do not: an answer must stay reachable however long the
-         question is, and a control that moves off screen with the text is one somebody has to
-         hunt for. -->
-    <androidx.core.widget.NestedScrollView
+        <TextView
+            android:id="@+id/study_topic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            tools:text="Operating Systems" />
+
+    </LinearLayout>
+
+    <!--
+        The two faces of one card, stacked and turned rather than one view whose text is swapped.
+        A flip needs both faces to exist at once: the front leaves to -90 degrees and the back
+        arrives from +90, so neither is ever seen edge-on and neither is ever seen reversed.
+
+        The frame is what carries the weight, so the card fills whatever the buttons leave.
+    -->
+    <FrameLayout
+        android:id="@+id/study_faces"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="12dp"
-        android:layout_weight="1"
-        android:fillViewport="true">
+        android:layout_weight="1">
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/study_card"
+            style="@style/Widget.Flashcards.Card"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="match_parent">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/study_front"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
-
-                <TextView
-                    android:id="@+id/study_front"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceHeadlineSmall" />
-
-                <View
-                    android:id="@+id/study_divider"
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="20dp"
-                    android:layout_marginBottom="20dp"
-                    android:background="?attr/colorOutlineVariant"
-                    android:visibility="gone" />
-
-                <TextView
-                    android:id="@+id/study_back"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceBodyLarge"
-                    android:visibility="gone" />
-
-            </LinearLayout>
+                android:layout_gravity="center_vertical"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.012"
+                android:lineSpacingMultiplier="1.28"
+                android:padding="26dp"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="26sp"
+                tools:text="What is a race condition?" />
 
         </com.google.android.material.card.MaterialCardView>
 
-    </androidx.core.widget.NestedScrollView>
+        <!-- Gone rather than merely behind the front. A card that is not showing must not be
+             reachable by touch or by a screen reader, and rotationY alone leaves both. -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/study_card_back"
+            style="@style/Widget.Flashcards.Card"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
 
-    <!-- Shown when there is nothing to answer. Two different sentences go in here; which one is
-         decided by StudyView.isEmptyCache, because "you are caught up" and "you have no cards"
-         are not the same news. -->
-    <TextView
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="26dp">
+
+                    <!-- The question, quietly, above its own answer. Reading an answer without
+                         the question it belongs to is the one thing a turned card can get
+                         wrong, and it costs two lines to prevent. -->
+                    <TextView
+                        android:id="@+id/study_back_prompt"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:textSize="15sp"
+                        tools:text="What is a race condition?" />
+
+                    <View
+                        android:id="@+id/study_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="16dp"
+                        android:background="?attr/colorSurfaceContainerHigh" />
+
+                    <TextView
+                        android:id="@+id/study_back"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:lineSpacingMultiplier="1.52"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="17sp"
+                        tools:text="Two threads touch shared state at the same time." />
+
+                </LinearLayout>
+
+            </androidx.core.widget.NestedScrollView>
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </FrameLayout>
+
+    <!--
+        Optional, and nothing reads it. It is here so that turning the card over is a comparison
+        rather than a recollection - which is the whole of what it buys, and the reason it folds
+        away on reveal instead of staying to be corrected.
+    -->
+    <LinearLayout
+        android:id="@+id/study_attempt_block"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="14dp">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Flashcards.Card.Field"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="22dp">
+
+            <EditText
+                android:id="@+id/study_attempt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@null"
+                android:gravity="top"
+                android:hint="@string/study_attempt_hint"
+                android:importantForAutofill="no"
+                android:inputType="textMultiLine|textCapSentences"
+                android:lineSpacingMultiplier="1.45"
+                android:minLines="3"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="15dp"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="?attr/colorOnSurfaceVariant"
+                android:textSize="16sp" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif-medium"
+            android:paddingHorizontal="6dp"
+            android:text="@string/study_attempt_note"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+    <!-- What was typed, kept where the answer can be held against it. Absent, not empty, when
+         nothing was typed: an empty quotation block is worse than no block. -->
+    <LinearLayout
+        android:id="@+id/study_wrote_block"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="14dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="7dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.02"
+            android:paddingHorizontal="6dp"
+            android:text="@string/study_you_wrote"
+            android:textAllCaps="true"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="12sp" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Flashcards.Card.Inset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/study_wrote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.45"
+                android:paddingHorizontal="17dp"
+                android:paddingVertical="13dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="15sp"
+                tools:text="Two threads racing over shared state." />
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+    <!--
+        Shown when there is nothing to answer, and it takes the card's weight so the tile lands in
+        the middle of the screen rather than under whatever the card left behind.
+
+        Two different sentences go in here; which one is decided by StudyView.isEmptyCache,
+        because "you are caught up" and "you have no cards" are not the same news.
+    -->
+    <LinearLayout
         android:id="@+id/study_empty"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="center"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingBottom="40dp"
+        android:visibility="gone">
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/study_empty_tile"
+            android:layout_width="104dp"
+            android:layout_height="104dp"
+            app:cardBackgroundColor="?attr/colorPrimaryContainer"
+            app:cardCornerRadius="34dp"
+            app:cardElevation="0dp">
+
+            <ImageView
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_empty_study"
+                app:tint="?attr/colorPrimary" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/study_empty_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:letterSpacing="-0.014"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="25sp"
+            tools:text="All caught up." />
+
+        <TextView
+            android:id="@+id/study_empty_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.5"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="16sp"
+            tools:text="Nothing due today." />
+
+    </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/study_show_answer"
+        style="@style/Widget.Flashcards.Button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
@@ -90,7 +294,8 @@
 
     <!-- Two rows rather than five across, and the split is where LAPSE_THRESHOLD falls: 1 and 2
          send the card back to the start of the ladder, 3 to 5 advance it. Somebody choosing
-         should be able to see that boundary without being told it. -->
+         should be able to see that boundary without being told it, which is what the two skins
+         are for - the accent is what advances a card. -->
     <LinearLayout
         android:id="@+id/study_answers"
         android:layout_width="match_parent"
@@ -106,16 +311,16 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/study_confidence_1"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.Flashcards.Button.Rating.Quiet"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="10dp"
                 android:layout_weight="1"
                 android:text="@string/study_confidence_1" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/study_confidence_2"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.Flashcards.Button.Rating.Quiet"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -126,27 +331,30 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/study_confidence_3"
+                style="@style/Widget.Flashcards.Button.Rating"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="10dp"
                 android:layout_weight="1"
                 android:text="@string/study_confidence_3" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/study_confidence_4"
+                style="@style/Widget.Flashcards.Button.Rating"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="10dp"
                 android:layout_weight="1"
                 android:text="@string/study_confidence_4" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/study_confidence_5"
+                style="@style/Widget.Flashcards.Button.Rating"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"

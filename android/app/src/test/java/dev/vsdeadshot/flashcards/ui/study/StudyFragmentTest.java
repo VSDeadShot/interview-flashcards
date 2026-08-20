@@ -1,11 +1,13 @@
 package dev.vsdeadshot.flashcards.ui.study;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.app.Application;
 import android.os.Looper;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.TextView;
 import androidx.room.Room;
 import androidx.work.testing.WorkManagerTestInitHelper;
@@ -15,6 +17,7 @@ import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.ui.Graph;
 import dev.vsdeadshot.flashcards.ui.MainActivity;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -43,6 +46,19 @@ import org.robolectric.annotation.Config;
 @Config(application = Application.class)
 public class StudyFragmentTest {
 
+    /**
+     * Long enough to cover the hold, the card leaving and the next one arriving.
+     *
+     * <p>Answering is deliberately not instant: the chosen button lifts, the choice sits there
+     * long enough to be read, and only then does the card leave and the review get written. A
+     * test that idled the looper without advancing it would see none of that happen and would
+     * report the screen as stuck.
+     */
+    private static final Duration ANSWER = Duration.ofMillis(900);
+
+    /** The two halves of the flip, and then some. */
+    private static final Duration FLIP = Duration.ofMillis(600);
+
     private FlashcardsDatabase db;
 
     @Before
@@ -70,10 +86,14 @@ public class StudyFragmentTest {
         MainActivity activity = open();
 
         assertEquals("What does the OOM killer do?", text(activity, R.id.study_front));
-        assertEquals(View.GONE, visibility(activity, R.id.study_back));
+        assertEquals("the answer is a whole second face, and it is not the one facing out",
+                View.GONE, visibility(activity, R.id.study_card_back));
         assertEquals("a card whose answer is already up cannot be answered honestly",
                 View.GONE, visibility(activity, R.id.study_answers));
         assertEquals(View.VISIBLE, visibility(activity, R.id.study_show_answer));
+        assertEquals("there is nothing to compare against yet",
+                View.GONE, visibility(activity, R.id.study_wrote_block));
+        assertEquals(View.VISIBLE, visibility(activity, R.id.study_attempt_block));
         assertEquals("Operating Systems", text(activity, R.id.study_topic));
     }
 
@@ -83,12 +103,48 @@ public class StudyFragmentTest {
         MainActivity activity = open();
 
         activity.findViewById(R.id.study_show_answer).performClick();
+        advance(FLIP);
 
         assertEquals("Picks a process and kills it.", text(activity, R.id.study_back));
-        assertEquals(View.VISIBLE, visibility(activity, R.id.study_back));
+        assertEquals(View.VISIBLE, visibility(activity, R.id.study_card_back));
+        assertEquals("the face that was showing has turned away", View.GONE,
+                visibility(activity, R.id.study_card));
         assertEquals(View.VISIBLE, visibility(activity, R.id.study_answers));
         assertEquals("nothing left to show", View.GONE,
                 visibility(activity, R.id.study_show_answer));
+        assertEquals("the field folds away with the turn", View.GONE,
+                visibility(activity, R.id.study_attempt_block));
+    }
+
+    /**
+     * The whole reason the field is there. Nothing grades it, so if it did not survive the reveal
+     * there would be no point in having typed it.
+     */
+    @Test
+    public void whatWasTypedIsKeptToCompareAgainstTheAnswer() throws Exception {
+        cacheCard(1L, "front", "Picks a process and kills it.");
+        MainActivity activity = open();
+
+        type(activity, "  it picks a process  ");
+        activity.findViewById(R.id.study_show_answer).performClick();
+        advance(FLIP);
+
+        assertEquals(View.VISIBLE, visibility(activity, R.id.study_wrote_block));
+        assertEquals("trimmed, because trailing space in a quotation block reads as a typo",
+                "it picks a process", text(activity, R.id.study_wrote));
+    }
+
+    /** An empty quotation block is worse than no block, so there is no block. */
+    @Test
+    public void typingNothingLeavesNoQuotationBlock() throws Exception {
+        cacheCard(1L, "front", "back");
+        MainActivity activity = open();
+
+        type(activity, "   ");
+        activity.findViewById(R.id.study_show_answer).performClick();
+        advance(FLIP);
+
+        assertEquals(View.GONE, visibility(activity, R.id.study_wrote_block));
     }
 
     @Test
@@ -97,13 +153,37 @@ public class StudyFragmentTest {
         cacheCard(2L, "second", "back two");
         MainActivity activity = open();
         activity.findViewById(R.id.study_show_answer).performClick();
+        advance(FLIP);
 
         activity.findViewById(R.id.study_confidence_4).performClick();
+        advance(ANSWER);
         settle();
 
         assertEquals("second", text(activity, R.id.study_front));
         assertEquals("the next question must not arrive with the last answer under it",
-                View.GONE, visibility(activity, R.id.study_back));
+                View.GONE, visibility(activity, R.id.study_card_back));
+        assertEquals(View.VISIBLE, visibility(activity, R.id.study_card));
+    }
+
+    /**
+     * The attempt belongs to the card it was typed against. Carrying it over would put somebody
+     * else's answer under a question it was never written for.
+     */
+    @Test
+    public void theNextCardArrivesWithAnEmptyAnswerField() throws Exception {
+        cacheCard(1L, "first", "back one");
+        cacheCard(2L, "second", "back two");
+        MainActivity activity = open();
+        type(activity, "something about the first card");
+        activity.findViewById(R.id.study_show_answer).performClick();
+        advance(FLIP);
+
+        activity.findViewById(R.id.study_confidence_4).performClick();
+        advance(ANSWER);
+        settle();
+
+        assertEquals("", text(activity, R.id.study_attempt));
+        assertEquals(View.GONE, visibility(activity, R.id.study_wrote_block));
     }
 
     @Test
@@ -111,9 +191,13 @@ public class StudyFragmentTest {
         MainActivity activity = open();
 
         assertEquals(View.VISIBLE, visibility(activity, R.id.study_empty));
-        assertEquals(activity.getString(R.string.study_no_cards),
-                text(activity, R.id.study_empty));
-        assertEquals(View.GONE, visibility(activity, R.id.study_card));
+        assertEquals(activity.getString(R.string.study_no_cards_title),
+                text(activity, R.id.study_empty_title));
+        assertEquals(activity.getString(R.string.study_no_cards_body),
+                text(activity, R.id.study_empty_body));
+        assertEquals(View.GONE, visibility(activity, R.id.study_faces));
+        assertEquals("a due count of zero is worse than no due count",
+                View.GONE, visibility(activity, R.id.study_header));
     }
 
     @Test
@@ -121,12 +205,19 @@ public class StudyFragmentTest {
         cacheCard(1L, "front", "back");
         MainActivity activity = open();
         activity.findViewById(R.id.study_show_answer).performClick();
+        advance(FLIP);
 
         activity.findViewById(R.id.study_confidence_5).performClick();
+        advance(ANSWER);
         settle();
 
-        assertEquals(activity.getString(R.string.study_caught_up),
-                text(activity, R.id.study_empty));
+        assertEquals(activity.getString(R.string.study_caught_up_title),
+                text(activity, R.id.study_empty_title));
+        assertEquals(activity.getString(R.string.study_caught_up_body),
+                text(activity, R.id.study_empty_body));
+        assertNotEquals("the two states must not share a sentence",
+                activity.getString(R.string.study_no_cards_title),
+                text(activity, R.id.study_empty_title));
     }
 
     // ---- fixtures -----------------------------------------------------------------------------
@@ -150,6 +241,21 @@ public class StudyFragmentTest {
         Graph.io().execute(behindTheRead::countDown);
         behindTheRead.await(10, TimeUnit.SECONDS);
         shadowOf(Looper.getMainLooper()).idle();
+    }
+
+    /**
+     * Runs the main looper forward, animations included.
+     *
+     * <p>Plain {@code idle()} runs what is already due and stops. This screen deliberately puts
+     * time between a tap and its consequence — a card turns over, a choice is held long enough to
+     * be seen — so a test that never advances the clock sees a screen that never moves.
+     */
+    private void advance(Duration duration) {
+        shadowOf(Looper.getMainLooper()).idleFor(duration);
+    }
+
+    private static void type(MainActivity activity, String attempt) {
+        ((EditText) activity.findViewById(R.id.study_attempt)).setText(attempt);
     }
 
     private static String text(MainActivity activity, int id) {

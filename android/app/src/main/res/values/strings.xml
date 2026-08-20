@@ -67,15 +67,12 @@
         <item quantity="other">%1$d cards due</item>
     </plurals>
 
-    <string name="study_caught_up">All caught up. Nothing due today.</string>
-    <!-- Deliberately not the sentence above. A fresh install has finished nothing, and the real
-         reason its queue is empty is that no sync has run yet. -->
-    <string name="study_no_cards">No cards here yet. Run a sync to fetch them.</string>
+    <!-- Each empty state is a heading and a sentence rather than one string, because the screen
+         draws them as two views at two sizes. Split here rather than at a full stop in code,
+         because a translation is not obliged to have one or to put it in the same place.
 
-    <!-- The same two states as a heading and a sentence, which is how the redesigned screen
-         draws them: two views at two sizes. Split here rather than at a full stop in code,
-         because a translation is not obliged to have one or to put it in the same place. The
-         two sentences above go when the screen stops asking for them. -->
+         The second pair is deliberately not a rewording of the first. A fresh install has
+         finished nothing, and the real reason its queue is empty is that no sync has run yet. -->
     <string name="study_caught_up_title">All caught up.</string>
     <string name="study_caught_up_body">Nothing due today.</string>
     <string name="study_no_cards_title">No cards here yet.</string>
