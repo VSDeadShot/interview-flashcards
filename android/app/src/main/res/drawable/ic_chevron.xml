@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The only thing on a stats row that says it goes somewhere. The row highlights under a finger
+    as well, but a highlight is only visible while it is being touched - this is visible before.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M9.5,5.5 L16,12 l-6.5,6.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -1,18 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Not tappable, and deliberately so: there is no filtered-by-topic list to open, and a row that
-    highlights under a finger and then does nothing is worse than one that never invited the tap.
+    Tappable, which it was not before. The old comment here said a row that highlights under a
+    finger and then does nothing is worse than one that never invited the tap - which was true
+    while there was no filtered list to open. There is one now, and this is the row most worth
+    tapping: for a topic holding nothing, the list it opens is the one offering to write or
+    generate the first card for it.
+
+    The rounded surface belongs to the container these are inflated into, not to the row, so
+    there is no card here and no corner radius. What the row carries is its own ripple.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
     android:orientation="vertical"
-    android:paddingVertical="10dp">
+    android:paddingHorizontal="18dp"
+    android:paddingVertical="15dp"
+    tools:ignore="Overdraw">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
         <TextView
@@ -21,16 +34,29 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.004"
             android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceBodyLarge" />
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="15.5sp"
+            tools:text="Operating Systems" />
 
         <TextView
             android:id="@+id/topic_counts"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:layout_marginStart="10dp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12.5sp"
+            tools:text="2 due of 4 cards" />
+
+        <ImageView
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:layout_marginStart="10dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron"
+            app:tint="?attr/colorOutline" />
 
     </LinearLayout>
 
@@ -44,8 +70,9 @@
         android:id="@+id/topic_progress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        app:trackCornerRadius="2dp"
-        app:trackThickness="4dp" />
+        android:layout_marginTop="9dp"
+        app:trackColor="?attr/colorSurfaceContainerHigh"
+        app:trackCornerRadius="3dp"
+        app:trackThickness="5dp" />
 
 </LinearLayout>

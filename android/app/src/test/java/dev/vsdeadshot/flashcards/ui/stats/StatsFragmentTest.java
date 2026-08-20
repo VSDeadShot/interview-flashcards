@@ -9,9 +9,13 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
 import androidx.room.Room;
 import androidx.work.testing.WorkManagerTestInitHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import dev.vsdeadshot.flashcards.R;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
@@ -174,6 +178,62 @@ public class StatsFragmentTest {
         assertEquals(0, topics.getChildCount());
     }
 
+    /**
+     * The drill-in, end to end. Three things have to be true at once and each is easy to get
+     * wrong on its own: the graph has to move, the bottom bar has to follow it to Cards, and the
+     * list has to arrive already scoped or the filter would be invisible.
+     */
+    @Test
+    public void tappingATopicRowOpensTheCardsItCounted() throws Exception {
+        cacheTopic(1L, "Databases");
+        cacheTopic(2L, "Operating Systems");
+        cacheCard(1L, 2L, LocalDate.now());
+        openStats();
+
+        LinearLayout topics = activity.findViewById(R.id.stats_topics);
+        // Ordered by name, so Operating Systems is the second row.
+        topics.getChildAt(1).performClick();
+        settle();
+
+        assertEquals("the row goes to the cards, not to a dead highlight",
+                R.id.cardListFragment, currentDestination());
+
+        BottomNavigationView bottomNav = activity.findViewById(R.id.bottom_nav);
+        assertEquals("a bar still lit on Stats would be lying about where you are",
+                R.id.cardListFragment, bottomNav.getSelectedItemId());
+
+        ChipGroup chips = activity.findViewById(R.id.cards_filter);
+        assertTrue("the list is scoped, so its chip has to arrive chosen",
+                ((Chip) chips.getChildAt(2)).isChecked());
+        assertEquals("Operating Systems", ((Chip) chips.getChildAt(2)).getText().toString());
+    }
+
+    /** Back goes to stats, not to whatever the Cards tab was last showing. */
+    @Test
+    public void comingBackFromATopicReturnsToStats() throws Exception {
+        cacheTopic(1L, "Databases");
+        openStats();
+
+        activity.<LinearLayout>findViewById(R.id.stats_topics).getChildAt(0).performClick();
+        settle();
+        navController().popBackStack();
+        settle();
+
+        assertEquals(R.id.statsFragment, currentDestination());
+    }
+
+    /**
+     * The container is hidden as well as emptied. A card with nothing in it is a rounded
+     * rectangle of surface sitting under a sentence explaining why there is nothing to put in it.
+     */
+    @Test
+    public void aCacheWithNoTopicsDrawsNoContainerEither() throws Exception {
+        openStats();
+
+        assertEquals(View.GONE,
+                activity.findViewById(R.id.stats_topics_card).getVisibility());
+    }
+
     // ---- fixtures -----------------------------------------------------------------------------
 
     private void openStats() throws InterruptedException {
@@ -181,6 +241,16 @@ public class StatsFragmentTest {
         BottomNavigationView bottomNav = activity.findViewById(R.id.bottom_nav);
         bottomNav.setSelectedItemId(R.id.statsFragment);
         settle();
+    }
+
+    private int currentDestination() {
+        return navController().getCurrentDestination().getId();
+    }
+
+    private NavController navController() {
+        NavHostFragment host = (NavHostFragment)
+                activity.getSupportFragmentManager().findFragmentById(R.id.nav_host);
+        return host.getNavController();
     }
 
     private String text(int id) {

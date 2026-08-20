@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The hairline between two topic rows. A LinearLayout divider rather than a view inside the row,
+    because showDividers="middle" already knows which gaps are between rows and which are the
+    edges of the container - which a row does not.
+
+    Inset from the left so it starts under the text rather than at the card's edge, which is what
+    keeps the rows reading as one surface rather than a stack of slabs.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="18dp">
+
+    <shape android:shape="rectangle">
+        <size android:height="1dp" />
+        <solid android:color="?attr/colorSurfaceContainerHigh" />
+    </shape>
+
+</inset>

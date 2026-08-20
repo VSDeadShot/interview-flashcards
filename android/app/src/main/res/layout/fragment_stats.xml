@@ -5,8 +5,13 @@
     parent has to be told to stop recycling before it will lay out at all — so the machinery would
     be paid for and then switched off. The list is also bounded by the number of topics, which is
     a handful of subject areas, not a feed.
+
+    That container is a card, which is what gives the rows their one rounded surface: the card
+    clips them to its corners, so no row has to know it is the first or the last.
 -->
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true">
@@ -15,9 +20,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingHorizontal="16dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="24dp">
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/stats_figures"
+            style="@style/Widget.Flashcards.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -26,7 +35,8 @@
                 android:layout_height="wrap_content"
                 android:baselineAligned="false"
                 android:orientation="horizontal"
-                android:padding="20dp">
+                android:paddingHorizontal="20dp"
+                android:paddingVertical="22dp">
 
                 <!--
                     Due first and in the accent colour, because it is the only figure on this
@@ -40,17 +50,18 @@
 
                     <TextView
                         android:id="@+id/stats_due_today"
+                        style="@style/TextAppearance.Flashcards.Figure"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                        android:textColor="?attr/colorPrimary" />
+                        android:textColor="?attr/colorPrimary"
+                        tools:text="4" />
 
                     <TextView
+                        style="@style/TextAppearance.Flashcards.FigureLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/stats_due_label"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:layout_marginTop="2dp"
+                        android:text="@string/stats_due_label" />
 
                 </LinearLayout>
 
@@ -62,16 +73,18 @@
 
                     <TextView
                         android:id="@+id/stats_reviewed_today"
+                        style="@style/TextAppearance.Flashcards.Figure"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+                        android:textColor="?attr/colorOnSurface"
+                        tools:text="3" />
 
                     <TextView
+                        style="@style/TextAppearance.Flashcards.FigureLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/stats_reviewed_label"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:layout_marginTop="2dp"
+                        android:text="@string/stats_reviewed_label" />
 
                 </LinearLayout>
 
@@ -83,16 +96,18 @@
 
                     <TextView
                         android:id="@+id/stats_total_cards"
+                        style="@style/TextAppearance.Flashcards.Figure"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+                        android:textColor="?attr/colorOnSurface"
+                        tools:text="9" />
 
                     <TextView
+                        style="@style/TextAppearance.Flashcards.FigureLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/stats_total_label"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:layout_marginTop="2dp"
+                        android:text="@string/stats_total_label" />
 
                 </LinearLayout>
 
@@ -107,6 +122,8 @@
             been told", never as a zero.
         -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/stats_streak"
+            style="@style/Widget.Flashcards.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp">
@@ -115,57 +132,84 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:paddingHorizontal="22dp"
+                android:paddingVertical="20dp">
 
                 <TextView
+                    style="@style/TextAppearance.Flashcards.FigureLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/stats_streak_title"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:text="@string/stats_streak_title" />
 
                 <TextView
                     android:id="@+id/stats_streak_value"
+                    style="@style/TextAppearance.Flashcards.Figure"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+                    android:layout_marginTop="3dp"
+                    android:textColor="?attr/colorOnSurface"
+                    tools:text="6 days" />
 
                 <TextView
                     android:id="@+id/stats_streak_detail"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:lineSpacingMultiplier="1.45"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="13sp"
+                    tools:text="Last fetched 4 minutes ago" />
 
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/stats_by_topic"
-            android:textAppearance="?attr/textAppearanceTitleMedium" />
-
-        <TextView
-            android:id="@+id/stats_no_topics"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/stats_no_topics"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:visibility="gone" />
-
         <LinearLayout
-            android:id="@+id/stats_topics"
+            android:id="@+id/stats_by_topic"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="vertical" />
+            android:layout_marginTop="26dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:letterSpacing="-0.01"
+                android:paddingHorizontal="6dp"
+                android:paddingBottom="10dp"
+                android:text="@string/stats_by_topic"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/stats_no_topics"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:paddingHorizontal="6dp"
+                android:text="@string/stats_no_topics"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/stats_topics_card"
+                style="@style/Widget.Flashcards.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:id="@+id/stats_topics"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:divider="@drawable/divider_topic_rows"
+                    android:orientation="vertical"
+                    android:showDividers="middle" />
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
 
     </LinearLayout>
 
