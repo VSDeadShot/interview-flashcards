@@ -29,6 +29,9 @@
     <string name="stats_streak_unknown">Not fetched yet. Run a sync to get it from the server.</string>
 
     <string name="stats_by_topic">By topic</string>
+    <!-- A topic row became tappable, so it needs to say where it goes. The bar and the counts
+         beside it are decoration to a screen reader; this is the row. -->
+    <string name="stats_topic_open">Show cards in %1$s</string>
     <!-- The quantity is the topic total, not the due count: "of 1 card" is the half of this
          sentence that inflects. -->
     <plurals name="stats_topic_counts">
@@ -38,6 +41,17 @@
     <string name="stats_no_topics">No topics yet. Run a sync to fetch them.</string>
 
     <string name="study_show_answer">Show answer</string>
+
+    <!-- Optional, and said so in the hint rather than in a label beside it: the field is the
+         only thing on the screen that can be skipped, and a hint is where somebody deciding
+         whether to type is already looking. -->
+    <string name="study_attempt_hint">Type your answer — optional</string>
+    <!-- Nothing grades this. Saying so is what stops the field reading as a test inside a test,
+         and saying what it is for is what makes it worth typing into. -->
+    <string name="study_attempt_note">Not graded. It stays on screen so you can compare.</string>
+    <!-- Drawn in capitals by the view, not written in them here. A translation may have no
+         capitals to draw, and one written in them cannot be lower-cased back. -->
+    <string name="study_you_wrote">You wrote</string>
 
     <!-- 1 and 2 are below Sm2Scheduler.LAPSE_THRESHOLD and send the card back to the start of
          the ladder; 3 to 5 advance it. The wording is meant to make that boundary legible without
@@ -57,6 +71,15 @@
     <!-- Deliberately not the sentence above. A fresh install has finished nothing, and the real
          reason its queue is empty is that no sync has run yet. -->
     <string name="study_no_cards">No cards here yet. Run a sync to fetch them.</string>
+
+    <!-- The same two states as a heading and a sentence, which is how the redesigned screen
+         draws them: two views at two sizes. Split here rather than at a full stop in code,
+         because a translation is not obliged to have one or to put it in the same place. The
+         two sentences above go when the screen stops asking for them. -->
+    <string name="study_caught_up_title">All caught up.</string>
+    <string name="study_caught_up_body">Nothing due today.</string>
+    <string name="study_no_cards_title">No cards here yet.</string>
+    <string name="study_no_cards_body">Run a sync to fetch them.</string>
     <!-- Shown on a row only when there is something to say. Most rows are synced and say
          nothing at all; a badge on every one of them would be noise. -->
     <string name="cards_unsent">Unsent</string>
@@ -64,6 +87,19 @@
     <string name="cards_no_topic">No topic</string>
 
     <string name="cards_empty">No cards yet. Run a sync to fetch them, or write one.</string>
+
+    <!-- Two states, not one sentence reworded. An empty deck is a sync that has not run; an
+         empty topic is a topic nothing has been written for yet. They are answered by different
+         actions, so they are different strings and the second names the topic. The sentence
+         above goes when the screen stops asking for it. -->
+    <string name="cards_empty_title">No cards yet.</string>
+    <string name="cards_empty_body">Run a sync to fetch them, or write one.</string>
+    <string name="cards_empty_topic_title">No cards in %1$s yet.</string>
+    <string name="cards_empty_topic_body">Write one, or generate a batch for this topic.</string>
+
+    <!-- The chip that clears the filter. Named rather than drawn as an icon, because it sits in
+         a row of topic names and has to read as one of them. -->
+    <string name="cards_filter_all">All</string>
     <string name="cards_new">New card</string>
 
     <string name="editor_new">New card</string>
@@ -71,6 +107,9 @@
     <!-- Neither "New card" nor "Edit card": the text came from somewhere, and saving
          adds it to the deck rather than changing something already in it. -->
     <string name="editor_generated">Add generated card</string>
+    <!-- Shown only when the editor is holding a candidate. It answers the question that screen
+         raises and no other one does: whether this is already a card. It is not, until saving. -->
+    <string name="editor_generated_note">Generated, not saved yet. Correct anything that is wrong and it is added as your own card.</string>
     <string name="editor_topic">Topic</string>
     <string name="editor_front">Question</string>
     <string name="editor_back">Answer</string>
@@ -118,6 +157,9 @@ Fix it and save to try again.</string>
         <item quantity="other">%d generated — review before saving</item>
     </plurals>
     <string name="candidate_accept">Add</string>
+    <!-- The row is tappable and always was, which works and is invisible. This is the same way
+         in, said out loud. -->
+    <string name="candidate_edit">Edit</string>
     <string name="candidate_discard">Discard</string>
     <string name="candidate_discard_all">Discard all</string>
 
