@@ -252,6 +252,8 @@ public class CardRepositoryTest {
         assertEquals(1, listed.size());
         assertEquals("from the server", listed.get(0).front);
         assertEquals("Operating Systems 1", listed.get(0).topicName);
+        assertEquals("a listing is filtered by topic id, so the row has to carry one",
+                1L, listed.get(0).topicId);
     }
 
     /**
@@ -275,6 +277,8 @@ public class CardRepositoryTest {
         assertEquals(1, listed.size());
         assertNull("there is nothing to call it, which is not the same as nothing to show",
                 listed.get(0).topicName);
+        assertEquals("the id survives the topic not being cached, which is why the filter uses it",
+                404L, listed.get(0).topicId);
     }
 
     @Test

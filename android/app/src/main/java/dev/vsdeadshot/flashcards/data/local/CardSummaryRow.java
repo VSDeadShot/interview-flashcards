@@ -18,6 +18,13 @@ public class CardSummaryRow {
 
     public String front;
 
+    /**
+     * What the card is filed under, always - unlike {@link #topicName}, which is null when the
+     * cache does not hold the topic. Filtering a listing keys on this rather than on the name,
+     * so a card whose topic has not been pulled yet still filters correctly.
+     */
+    public long topicId;
+
     /** Null when the cache does not hold the card's topic — a listing shows the card regardless. */
     public String topicName;
 

@@ -180,7 +180,7 @@ public interface CardDao {
      * added one will look for it.
      */
     @Query("""
-            select c.id as id, c.front as front, t.name as topicName,
+            select c.id as id, c.front as front, c.topicId as topicId, t.name as topicName,
                    c.serverId as serverId, c.pendingSince as pendingSince,
                    c.syncError as syncError
             from card c left join topic t on t.id = c.topicId
