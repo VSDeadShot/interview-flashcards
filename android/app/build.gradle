@@ -124,6 +124,12 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel:2.11.0'
     implementation 'androidx.lifecycle:lifecycle-livedata:2.11.0'
 
+    // The press feedback every screen shares is a spring rather than a duration, so a quick tap
+    // and a long press both feel answered. SpringAnimation lives here and nowhere else - neither
+    // appcompat nor material brings it transitively, and the ObjectAnimator alternative would
+    // have to guess a duration for a gesture whose length is not known when it starts.
+    implementation 'androidx.dynamicanimation:dynamicanimation:1.1.0'
+
     testImplementation 'junit:junit:4.13.2'
     // Runs the Android framework on the JVM, so the database tests need no emulator — the
     // same reason the backend runs Postgres in-process rather than asking for Docker.
