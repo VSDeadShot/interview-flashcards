@@ -10,10 +10,12 @@ import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.transition.MaterialContainerTransform;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.ui.Motion;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.ui.cards.CardEditorViewModel.EditorState;
@@ -27,6 +29,9 @@ public final class CardEditorFragment extends Fragment {
     public static final String ARG_CANDIDATE_ID = "candidateId";
     public static final String ARG_TITLE = "title";
 
+    /** The row growing into this screen. Long enough to follow, short enough not to wait on. */
+    private static final long CONTAINER_MS = 300L;
+
     private CardEditorViewModel model;
     private List<TopicEntity> topics = List.of();
     private int chosenTopic = -1;
@@ -36,7 +41,29 @@ public final class CardEditorFragment extends Fragment {
     }
 
     @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // The row that was tapped grows into this screen rather than a screen sliding over
+        // it, so which card is being edited never has to be re-established. Set in onCreate
+        // because a fragment's transitions are read when the transaction showing it runs,
+        // which is before its view exists.
+        MaterialContainerTransform transform = new MaterialContainerTransform();
+        transform.setDuration(CONTAINER_MS);
+        transform.setInterpolator(Motion.FAST_OUT_SLOW_IN);
+        // Drawn in the fragment container rather than in the decor view. Without this the
+        // transform runs above the toolbar and the bottom bar, which do not move and should
+        // not be crossed.
+        transform.setDrawingViewId(R.id.nav_host);
+        setSharedElementEnterTransition(transform);
+    }
+
+    @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        // The name the card list put on the row it is handing over. Matched by name rather
+        // than by id, which is what lets three different starting views - a card row, a
+        // candidate and the floating button - all arrive at this one destination.
+        view.setTransitionName(CardListFragment.EDITOR_TRANSITION);
+        Motion.press(view.findViewById(R.id.editor_save));
         long cardId = requireArguments().getLong(ARG_CARD_ID, CardEditorViewModel.NEW_CARD);
         long candidateId =
                 requireArguments().getLong(ARG_CANDIDATE_ID, CardEditorViewModel.NO_CANDIDATE);
@@ -103,6 +130,12 @@ public final class CardEditorFragment extends Fragment {
                 ((TextInputEditText) view.findViewById(R.id.editor_back)).setText(state.back());
             }
         }
+
+        // The one thing on this screen that says which of its two sources it is showing, and
+        // it says it about the content rather than about the screen: what is in the fields is
+        // not a card yet.
+        view.findViewById(R.id.editor_generated_banner)
+                .setVisibility(state.candidate() != null ? View.VISIBLE : View.GONE);
 
         View banner = view.findViewById(R.id.editor_rejected_banner);
         boolean refused = card != null && card.syncError != null;

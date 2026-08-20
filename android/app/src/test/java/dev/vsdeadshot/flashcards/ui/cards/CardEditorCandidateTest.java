@@ -100,7 +100,11 @@ public class CardEditorCandidateTest extends CardListTestSupport {
         RecyclerView list = activity.findViewById(R.id.cards_list);
         relayout(list);
         // Position 0 is the band's header; the first candidate sits directly under it.
-        row(list, 1).performClick();
+        //
+        // The card inside the row rather than the row itself. The row is the band's tinted
+        // padding around it, and tapping the gap between two candidates should open neither -
+        // which is also why the card is what the editor grows out of.
+        row(list, 1).findViewById(R.id.candidate_card).performClick();
         settle();
         return activity;
     }

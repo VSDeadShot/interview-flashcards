@@ -1,16 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    The root carries the transition name the card list's row is matched against, so opening the
+    editor grows the row rather than sliding a screen over it. It also needs a background of its
+    own for that: a container transform fades one surface into another, and a transparent
+    destination has no surface to fade to.
+-->
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/editor_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/colorSurfaceContainer"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingHorizontal="20dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="28dp">
 
         <!--
             The server's own words, shown where they can be acted on. The list says which cards
@@ -19,9 +29,10 @@
         -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/editor_rejected_banner"
+            style="@style/Widget.Flashcards.Card.Inset"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="18dp"
             android:visibility="gone"
             app:cardBackgroundColor="?attr/colorErrorContainer">
 
@@ -29,9 +40,53 @@
                 android:id="@+id/editor_rejected_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorOnErrorContainer" />
+                android:lineSpacingMultiplier="1.45"
+                android:padding="15dp"
+                android:textColor="?attr/colorOnErrorContainer"
+                android:textSize="13sp" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!--
+            Only ever shown on a candidate, and it answers the question only a candidate raises:
+            whether this is already a card. It is not, until saving. Nothing else on the screen
+            distinguishes the two, deliberately - the fields, the picker and the way back are the
+            same whichever is being written.
+        -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/editor_generated_banner"
+            style="@style/Widget.Flashcards.Card.Inset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="18dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="?attr/colorSecondaryContainer">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="15dp"
+                android:paddingVertical="13dp">
+
+                <ImageView
+                    android:layout_width="19dp"
+                    android:layout_height="19dp"
+                    android:layout_marginTop="1dp"
+                    android:layout_marginEnd="11dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_generate"
+                    app:tint="?attr/colorPrimary" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingMultiplier="1.45"
+                    android:text="@string/editor_generated_note"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="13sp" />
+
+            </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
@@ -41,39 +96,70 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
+            android:lineSpacingMultiplier="1.5"
             android:text="@string/editor_no_topics"
-            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="16sp"
             android:visibility="gone" />
 
+        <!--
+            Filled fields on their own raised surfaces rather than outlined boxes. The design asks
+            for depth instead of strokes throughout, and a text field is where that reads most:
+            an outline draws a rectangle around something already rectangular.
+
+            The label sits above the field rather than floating into its border, which is what an
+            outlined box uses its stroke for and what a filled one has no room for.
+        -->
         <LinearLayout
             android:id="@+id/editor_fields"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <TextView
+                style="@style/TextAppearance.Flashcards.SectionLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="7dp"
+                android:text="@string/editor_topic" />
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/editor_topic_layout"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/editor_topic">
+                app:boxCornerRadiusBottomEnd="20dp"
+                app:boxCornerRadiusBottomStart="20dp"
+                app:boxCornerRadiusTopEnd="20dp"
+                app:boxCornerRadiusTopStart="20dp">
 
                 <com.google.android.material.textfield.MaterialAutoCompleteTextView
                     android:id="@+id/editor_topic"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="none"
+                    android:textSize="15.5sp"
                     tools:ignore="LabelFor" />
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <TextView
+                style="@style/TextAppearance.Flashcards.SectionLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="7dp"
+                android:text="@string/editor_front" />
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/editor_front_layout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                style="@style/Widget.Flashcards.TextField"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:hint="@string/editor_front">
+                android:layout_height="wrap_content">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/editor_front"
@@ -81,17 +167,27 @@
                     android:layout_height="wrap_content"
                     android:gravity="top"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:minLines="3" />
+                    android:lineSpacingMultiplier="1.45"
+                    android:minLines="3"
+                    android:textSize="15.5sp" />
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <TextView
+                style="@style/TextAppearance.Flashcards.SectionLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="7dp"
+                android:text="@string/editor_back" />
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/editor_back_layout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                style="@style/Widget.Flashcards.TextField"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:hint="@string/editor_back">
+                android:layout_height="wrap_content">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/editor_back"
@@ -99,12 +195,15 @@
                     android:layout_height="wrap_content"
                     android:gravity="top"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:minLines="4" />
+                    android:lineSpacingMultiplier="1.45"
+                    android:minLines="5"
+                    android:textSize="15.5sp" />
 
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/editor_save"
+                style="@style/Widget.Flashcards.Button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"

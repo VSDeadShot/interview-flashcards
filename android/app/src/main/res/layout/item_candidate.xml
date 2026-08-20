@@ -4,70 +4,100 @@
     user already knows the contents of; a generated one is being read for the first time, and
     deciding whether to keep it means seeing what the model claimed the answer was.
 
-    Raised, because these rows are not part of the deck yet and should not read as though they
-    already are.
+    A raised white card inside the band's tint, so a candidate reads as an object still being
+    decided about rather than as a row already filed. The outer layout carries the band's colour
+    and is painted by the adapter, which is also what rounds the band's last row.
 
-    Tappable, which opens the editor on the candidate: the two buttons are the quick decisions,
-    and the row itself is the way to correct the text before accepting it.
+    Tappable as well as buttoned. The row was always the way into the editor, which works and is
+    invisible; Edit is that same way in, said out loud.
 -->
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="12dp"
-    android:layout_marginVertical="4dp"
-    android:clickable="true"
-    android:focusable="true"
-    app:cardElevation="0dp"
-    app:strokeColor="?attr/colorOutlineVariant"
-    app:strokeWidth="1dp">
+    android:paddingHorizontal="12dp"
+    android:paddingBottom="10dp">
 
-    <LinearLayout
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/candidate_card"
+        style="@style/Widget.Flashcards.Card.Field"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="4dp">
-
-        <TextView
-            android:id="@+id/candidate_front"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodyLarge" />
-
-        <TextView
-            android:id="@+id/candidate_back"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+        android:clickable="true"
+        android:focusable="true"
+        app:cardCornerRadius="22dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="end"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="15dp"
+            android:paddingBottom="8dp">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/candidate_discard"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/candidate_front"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/candidate_discard" />
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.005"
+                android:lineSpacingMultiplier="1.35"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="15sp"
+                tools:text="What is the primary purpose of database normalization?" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/candidate_accept"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/candidate_back"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/candidate_accept" />
+                android:layout_marginTop="5dp"
+                android:ellipsize="end"
+                android:lineSpacingMultiplier="1.45"
+                android:maxLines="2"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="13.5sp"
+                tools:text="To remove redundancy so that one fact is stored in exactly one place." />
+
+            <!--
+                Discard, Edit, Add - left to right, ending on the one that keeps the card. The
+                order is deliberate: the accented button is last, where a thumb lands, and the
+                destructive one is furthest from it.
+            -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/candidate_discard"
+                    style="@style/Widget.Flashcards.Button.Candidate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/candidate_discard" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/candidate_edit"
+                    style="@style/Widget.Flashcards.Button.Candidate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/candidate_edit" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/candidate_accept"
+                    style="@style/Widget.Flashcards.Button.Candidate.Accept"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/candidate_accept" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
-    </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-</com.google.android.material.card.MaterialCardView>
+</FrameLayout>

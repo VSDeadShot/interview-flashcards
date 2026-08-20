@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Inflated rather than declared, because the set is the user's topics and is only known at run
+    time. A layout file rather than `new Chip(context, null, styleAttr)`: a Chip built in code
+    takes its style from an attribute the theme has to define, and one file is a smaller thing
+    than a theme attribute that exists for a single call site.
+-->
+<com.google.android.material.chip.Chip
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Flashcards.Chip.Topic"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:checkable="true" />

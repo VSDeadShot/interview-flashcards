@@ -177,4 +177,89 @@
         <item name="android:textSize">15sp</item>
     </style>
 
+    <!--
+        A filled field with no indicator line under it. The design asks for depth rather than
+        strokes throughout, and a text field is where that reads most: an outline draws a
+        rectangle around something that is already a rectangle.
+
+        The hint is not used as a floating label - a label sits above each field in the layout -
+        so the box needs no room reserved at the top for one to rise into.
+    -->
+    <style name="Widget.Flashcards.TextField"
+        parent="Widget.Material3.TextInputLayout.FilledBox">
+        <item name="boxBackgroundColor">?attr/colorSurfaceContainerLowest</item>
+        <item name="boxCornerRadiusTopStart">20dp</item>
+        <item name="boxCornerRadiusTopEnd">20dp</item>
+        <item name="boxCornerRadiusBottomStart">20dp</item>
+        <item name="boxCornerRadiusBottomEnd">20dp</item>
+        <item name="hintEnabled">false</item>
+        <item name="boxStrokeWidth">0dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+    </style>
+
+    <!--
+        The three decisions on a candidate. Text buttons, because a candidate row already carries
+        two lines of unfamiliar text and three filled buttons under it would be the loudest thing
+        on the screen - and two of the three are ways of getting rid of it.
+    -->
+    <style name="Widget.Flashcards.Button.Candidate"
+        parent="Widget.Material3.Button.TextButton">
+        <item name="android:minHeight">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingHorizontal">13dp</item>
+        <item name="android:paddingVertical">9dp</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textAppearance">@style/TextAppearance.Flashcards.Candidate</item>
+    </style>
+
+    <!-- The one that keeps the card, and the only one of the three that is tinted. -->
+    <style name="Widget.Flashcards.Button.Candidate.Accept">
+        <item name="backgroundTint">?attr/colorSecondaryContainer</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextAppearance.Flashcards.Candidate" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
+    <!-- A squircle rather than a circle. The floating button is the one control on the card list
+         that is neither a row nor a chip, and at this radius it belongs to the same family of
+         corners as both. -->
+    <style name="ShapeAppearance.Flashcards.Fab" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">21dp</item>
+    </style>
+
+    <!--
+        The filter chips. Not Material's own filter chip, which draws a tick when it is selected
+        and pushes the label sideways to make room: these sit in a horizontally scrolling row
+        where every chip changing width on selection is the one thing that makes a row jump.
+    -->
+    <style name="Widget.Flashcards.Chip.Topic" parent="Widget.Material3.Chip.Filter">
+        <item name="android:textAppearance">@style/TextAppearance.Flashcards.Chip</item>
+        <item name="chipMinHeight">38dp</item>
+        <item name="chipCornerRadius">19dp</item>
+        <item name="chipStartPadding">9dp</item>
+        <item name="chipEndPadding">9dp</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipIconVisible">false</item>
+        <item name="chipBackgroundColor">@color/chip_topic_background</item>
+        <item name="android:textColor">@color/chip_topic_text</item>
+        <item name="ensureMinTouchTargetSize">false</item>
+    </style>
+
+    <style name="TextAppearance.Flashcards.Chip" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
 </resources>

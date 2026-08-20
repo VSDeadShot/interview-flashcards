@@ -4,53 +4,85 @@
     each one on its own raised surface makes the list read as a stack of objects to arrange rather
     than a set of lines to scan.
 
-    Overdraw is suppressed rather than avoided: the background is a ripple, which is the whole of
-    the touch feedback on a tappable row, and there is no version of that which paints nothing.
+    The rounded white surface the rows sit on belongs to the group, not to the row: the adapter
+    gives the first row rounded top corners and the last rounded bottom ones, so the deck reads as
+    one container with hairlines in it. That cannot be expressed here, because a row does not know
+    where in the list it is - and there is no background attribute here at all for the same
+    reason. Anything set here would be replaced on bind.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:orientation="vertical"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp"
-    tools:ignore="Overdraw">
-
-    <TextView
-        android:id="@+id/card_front"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:maxLines="2"
-        android:textAppearance="?attr/textAppearanceBodyLarge" />
+    android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:paddingHorizontal="18dp"
+        android:paddingVertical="14dp">
 
         <TextView
-            android:id="@+id/card_topic"
-            android:layout_width="0dp"
+            android:id="@+id/card_front"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.004"
+            android:lineSpacingMultiplier="1.4"
+            android:maxLines="2"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="15.5sp"
+            tools:text="What is a deadlock?" />
 
-        <TextView
-            android:id="@+id/card_status"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:visibility="gone" />
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/card_topic"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12.5sp"
+                tools:text="Operating Systems" />
+
+            <TextView
+                android:id="@+id/card_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.03"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="3dp"
+                android:textAllCaps="true"
+                android:textSize="11sp"
+                android:visibility="gone"
+                tools:text="Unsent"
+                tools:visibility="visible" />
+
+        </LinearLayout>
 
     </LinearLayout>
+
+    <!-- Inset from the left so it starts under the text rather than at the container's edge,
+         which is what keeps the group reading as one surface instead of a stack of slabs.
+         Hidden on the last row, where the container's own edge does the job. -->
+    <View
+        android:id="@+id/card_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="18dp"
+        android:background="?attr/colorSurfaceContainerHigh" />
 
 </LinearLayout>

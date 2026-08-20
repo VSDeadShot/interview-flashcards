@@ -83,12 +83,9 @@
     <string name="cards_rejected">Rejected</string>
     <string name="cards_no_topic">No topic</string>
 
-    <string name="cards_empty">No cards yet. Run a sync to fetch them, or write one.</string>
-
     <!-- Two states, not one sentence reworded. An empty deck is a sync that has not run; an
          empty topic is a topic nothing has been written for yet. They are answered by different
-         actions, so they are different strings and the second names the topic. The sentence
-         above goes when the screen stops asking for it. -->
+         actions, so they are different strings and the second names the topic. -->
     <string name="cards_empty_title">No cards yet.</string>
     <string name="cards_empty_body">Run a sync to fetch them, or write one.</string>
     <string name="cards_empty_topic_title">No cards in %1$s yet.</string>

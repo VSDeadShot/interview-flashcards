@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Theme attributes rather than literals, so the chips follow the dark theme like everything
+    else. A selector is what a Chip wants for its background; one colour would need a second
+    Chip to express the other state.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true" android:color="?attr/colorPrimary" />
+    <item android:color="?attr/colorSurfaceContainerLowest" />
+</selector>

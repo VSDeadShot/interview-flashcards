@@ -3,28 +3,37 @@
     The band's own row rather than a header view outside the list. It scrolls with the candidates
     it counts; a fixed header would sit over saved cards long after the band it describes had
     scrolled away.
+
+    No background here either: this is the top of the band, so its tint and its rounded top
+    corners are painted by the adapter, which is the only thing that knows the row is first.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="16dp"
-    android:paddingTop="12dp"
-    android:paddingEnd="4dp"
-    android:paddingBottom="4dp">
+    android:paddingStart="18dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="10dp">
 
     <TextView
         android:id="@+id/candidate_header_text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textAppearance="?attr/textAppearanceTitleSmall"
-        android:textColor="?attr/colorPrimary" />
+        android:ellipsize="end"
+        android:letterSpacing="0.005"
+        android:maxLines="1"
+        android:textColor="?attr/colorPrimary"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        tools:text="5 generated — review before saving" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/candidate_discard_all"
-        style="@style/Widget.Material3.Button.TextButton"
+        style="@style/Widget.Flashcards.Button.Candidate"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/candidate_discard_all" />
