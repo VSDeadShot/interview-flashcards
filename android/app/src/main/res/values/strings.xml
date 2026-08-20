@@ -98,11 +98,14 @@ Fix it and save to try again.</string>
     <string name="generate_focus">Focus (optional)</string>
     <string name="generate_count">How many</string>
     <string name="generate_go">Generate</string>
-    <!-- Three failures a person can tell apart and act on differently: wait, change the focus,
-         or turn the radio on. A single "generation failed" would answer none of them. -->
+    <!-- Four failures a person can tell apart and act on differently: wait, change the focus,
+         turn the radio on, or stop trying and go and fix the server. A single "generation
+         failed" would answer none of them, and the last one is the reason this is not three:
+         advising a retry for a wrong key invites it forever. -->
     <string name="generate_error_busy">The card generator is busy. Try again shortly.</string>
     <string name="generate_error_refused">The generator had nothing to add for that. Try a different focus.</string>
     <string name="generate_error_offline">Generating needs a connection.</string>
+    <string name="generate_error_misconfigured">Card generation is not set up correctly on the server. Retrying will not help.</string>
     <plurals name="generate_done">
         <item quantity="one">%d card ready to review</item>
         <item quantity="other">%d cards ready to review</item>

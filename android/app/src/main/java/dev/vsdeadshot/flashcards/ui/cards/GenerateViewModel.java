@@ -53,6 +53,30 @@ public final class GenerateViewModel extends AndroidViewModel {
         return state;
     }
 
+    /**
+     * What a failed generation should tell the person who asked for it.
+     *
+     * <p>Takes the status rather than the exception so it can be tested from outside
+     * {@code data.remote}, whose {@code ApiException} constructor is package-private.
+     *
+     * <p><strong>Only 503 invites a retry.</strong> The backend answers 503 for an upstream
+     * that did not respond, 422 for a model that had nothing usable to say, and a bodyless 500
+     * for our own credential or model name being wrong -- which {@code ApiExceptionHandler}
+     * leaves unmapped on purpose, so nothing about the misconfiguration is described to a
+     * caller. Defaulting the unrecognised case to "busy, try again shortly" made this side
+     * repeat the mistake that was fixed one layer down: a request the server has rejected as
+     * ours is not a passing outage, and telling somebody to wait for a key to start working
+     * asks them to wait forever.
+     */
+    @StringRes
+    static int messageFor(int status) {
+        return switch (status) {
+            case 422 -> R.string.generate_error_refused;
+            case 503 -> R.string.generate_error_busy;
+            default -> R.string.generate_error_misconfigured;
+        };
+    }
+
     public void generate(long topicId, @Nullable String focus, int count) {
         state.setValue(new GenerateState(true, null, null));
         io.execute(() -> {
@@ -64,11 +88,7 @@ public final class GenerateViewModel extends AndroidViewModel {
                 int stored = Graph.generator(getApplication()).generate(topicId, focus, count);
                 state.postValue(new GenerateState(false, stored, null));
             } catch (ApiException e) {
-                // 422 and 503 are separated on purpose: one invites a retry, the other says an
-                // identical request will produce the same nothing.
-                state.postValue(new GenerateState(false, null,
-                        e.status() == 422 ? R.string.generate_error_refused
-                                : R.string.generate_error_busy));
+                state.postValue(new GenerateState(false, null, messageFor(e.status())));
             } catch (IOException e) {
                 // The one feature in this app that a dead radio actually stops. Everything else
                 // was built so the network being absent changes nothing.
