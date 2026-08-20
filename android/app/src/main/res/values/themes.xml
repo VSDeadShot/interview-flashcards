@@ -6,7 +6,172 @@
         NoActionBar because the toolbar is in the layout: the bottom bar and the toolbar have to
         be siblings of the fragment container for the container to be the only thing that
         changes as destinations swap.
+
+        The window background is the ground every screen sits on, set here rather than on four
+        fragment roots. A fragment that sets its own would be the one that stops following the
+        theme when the theme changes.
     -->
-    <style name="Theme.Flashcards" parent="Theme.Material3.DayNight.NoActionBar" />
+    <style name="Theme.Flashcards" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">?attr/colorSurfaceContainer</item>
+    </style>
+
+    <!--
+        ==========================================================================================
+        The design canvases are drawn in one appearance, with literal colours. Those literals are
+        Material 3's own baseline light palette, so every one of them has a role it can be named
+        by - and naming it is what keeps the app working in the dark theme the canvases never
+        show. Nothing below hard-codes a colour; ic_launcher_background stays the only one in the
+        app, for the reason colors.xml gives.
+
+        The mapping, once, so no screen has to guess at it twice:
+
+            #F4F2F7  page ground             colorSurfaceContainer
+            #FFFFFF  a raised card or field  colorSurfaceContainerLowest
+            #EDE9F3  a quiet inset block     colorSurfaceContainerHigh
+            #F0ECF5  a hairline between rows colorSurfaceContainerHigh
+            #E9E5EF  a neutral filled button colorSurfaceContainerHighest
+            #EFE9F8  the generated band      colorSecondaryContainer
+            #E5D9F7  the band's Add button   colorSecondaryContainer
+            #EADDFF  the bottom bar pill     colorPrimaryContainer
+            #6750A4  the accent              colorPrimary
+            #1C1B1F  body text               colorOnSurface
+            #6B6772  secondary text          colorOnSurfaceVariant
+
+        The two greys that are one role are deliberate. A hairline inside a white card and a
+        quiet inset block on the page are the same distance from what they sit on, and giving
+        them separate roles would only let the two drift apart.
+        ==========================================================================================
+    -->
+
+    <!-- Flat against the page. The design draws no line or shadow under the title, and the
+         separation it does have comes from the content being inset, not from the bar. -->
+    <style name="Widget.Flashcards.AppBar" parent="Widget.Material3.AppBarLayout">
+        <item name="android:background">?attr/colorSurfaceContainer</item>
+        <item name="elevation">0dp</item>
+        <item name="liftOnScroll">false</item>
+    </style>
+
+    <style name="Widget.Flashcards.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="titleTextAppearance">@style/TextAppearance.Flashcards.ScreenTitle</item>
+    </style>
+
+    <!--
+        The one surface in the app that is lighter than the page rather than the same as it, which
+        is what makes the bar read as sitting over the content instead of behind it.
+
+        Labels are always shown. Three items have room to spare, and a label that appears only on
+        the active item makes the other two a guess.
+    -->
+    <style name="Widget.Flashcards.BottomNav"
+        parent="Widget.Material3.BottomNavigationView">
+        <item name="android:background">?attr/colorSurfaceContainerLowest</item>
+        <item name="elevation">0dp</item>
+        <item name="labelVisibilityMode">labeled</item>
+    </style>
+
+    <!-- 28dp, which is Material 3's extra-large corner and what every large container on the
+         canvases is drawn at. Elevation rather than a stroke: the brief asked for depth. -->
+    <style name="Widget.Flashcards.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLowest</item>
+        <item name="cardCornerRadius">28dp</item>
+        <item name="cardElevation">2dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <!-- The same surface at the smaller radius the canvases use for anything the size of a
+         single field or block, where 28dp would swallow the text. -->
+    <style name="Widget.Flashcards.Card.Field">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">1dp</item>
+    </style>
+
+    <!-- Sits on the page rather than above it: no shadow, and a tint that is close enough to
+         the ground to read as an area rather than an object. -->
+    <style name="Widget.Flashcards.Card.Inset">
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerHigh</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+    </style>
+
+    <!--
+        The full-width action at the bottom of a screen. The insets go to zero because a Material
+        button reserves 6dp above and below itself for a touch target it already has at this
+        height, and leaving them in makes 56dp measure as 68dp.
+    -->
+    <style name="Widget.Flashcards.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">56dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="cornerRadius">28dp</item>
+        <item name="android:textAppearance">@style/TextAppearance.Flashcards.Action</item>
+    </style>
+
+    <!-- Shorter, because five of them share two rows and the rows have to fit under a card. -->
+    <style name="Widget.Flashcards.Button.Rating">
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">26dp</item>
+        <item name="android:textAppearance">@style/TextAppearance.Flashcards.Rating</item>
+    </style>
+
+    <!--
+        The two answers below the lapse threshold. Neutral rather than accented, so the boundary
+        the two rows already draw is visible without a legend: the accent is what advances a card.
+
+        Not a tonal button, which would be secondaryContainer and read as a third accent.
+    -->
+    <style name="Widget.Flashcards.Button.Rating.Quiet">
+        <item name="backgroundTint">?attr/colorSurfaceContainerHighest</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <!-- 22sp on the three tabs. The editor overrides it down to 20sp, because its title is an
+         argument and can run long enough to need the ellipsis. -->
+    <style name="TextAppearance.Flashcards.ScreenTitle"
+        parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">22sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <!--
+        A figure on the stats screen. Large, tight, and read by comparing it to the two beside
+        it, which is why nothing counts it up from zero: half a second of rolling digits is half
+        a second in the way of the comparison, through values that were never true.
+    -->
+    <style name="TextAppearance.Flashcards.Figure"
+        parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textSize">34sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.022</item>
+    </style>
+
+    <!-- What a figure is. Deliberately smaller than the figure by a lot: three bare numbers side
+         by side are the thing being read, and the words under them are the caption. -->
+    <style name="TextAppearance.Flashcards.FigureLabel"
+        parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12.5sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <!-- Above a field or a block: says what the thing under it is, and gets out of the way. -->
+    <style name="TextAppearance.Flashcards.SectionLabel"
+        parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">12.5sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <style name="TextAppearance.Flashcards.Action" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
+    <style name="TextAppearance.Flashcards.Rating" parent="TextAppearance.Flashcards.Action">
+        <item name="android:textSize">15sp</item>
+    </style>
 
 </resources>
