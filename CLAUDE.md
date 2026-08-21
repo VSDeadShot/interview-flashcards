@@ -226,11 +226,14 @@ state that write produced rather than racing it.
 
 **There is still no abstract view-model base, and now it is a finding rather than a deferral.**
 All four view models have landed and they do *not* all read the same way. `StatsViewModel` and
-`CardListViewModel` subscribe to invalidation; the other two deliberately do not. `StudyViewModel`
-would otherwise swap the question out from under somebody mid-answer, so it reloads only when it
-has itself moved on, and `CardEditorViewModel` holds a card the user is typing into, which a
-refresh would overwrite. A base class would fit half of them, which is the shape that makes a base
-class a liability rather than a saving.
+`CardListViewModel` subscribe to invalidation and act on every notification. `StudyViewModel`
+subscribes too but **acts only while no card is showing**: a write from elsewhere must not swap
+the question out from under somebody mid-answer, which is a reason to protect a card that is on
+screen rather than to ignore the cache — with an empty queue there is nothing to interrupt, and
+the narrower rule is what stops the caught-up screen telling somebody to run a sync that then
+appears to do nothing. `CardEditorViewModel` does not subscribe at all, because it holds a card
+the user is typing into, which a refresh would overwrite. A base class would fit two of them,
+which is the shape that makes a base class a liability rather than a saving.
 
 **`StudyViewModel.reload()` captures what is showing on the main thread before hopping.** It keeps
 the answer revealed only when the card that comes back is the same one, so a background sync

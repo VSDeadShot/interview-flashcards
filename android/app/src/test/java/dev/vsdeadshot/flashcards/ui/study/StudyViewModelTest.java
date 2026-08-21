@@ -62,12 +62,21 @@ public class StudyViewModelTest {
         db = Room.inMemoryDatabaseBuilder(
                         RuntimeEnvironment.getApplication(), FlashcardsDatabase.class)
                 .allowMainThreadQueries()
+                // Room refreshes its invalidation tracker on the query executor. Running that
+                // inline is what lets a write and the notification it causes be observed within
+                // one test method rather than raced against.
+                .setQueryExecutor(DIRECT)
                 .build();
         cacheTopic();
     }
 
     @After
     public void tearDown() {
+        if (model != null) {
+            // Unregisters the invalidation observer. Room holds it strongly, so a test that left
+            // it behind would keep its view model alive for the rest of the suite.
+            model.onCleared();
+        }
         db.close();
     }
 
@@ -202,10 +211,51 @@ public class StudyViewModelTest {
                 0, immediateSyncRequests());
     }
 
+    /**
+     * The empty screen tells somebody to run a sync. This is that sync arriving.
+     *
+     * <p>Before this, the cards a sync fetched could not reach the study screen at all until the
+     * tab was left and reopened — so the one instruction the empty state gives appeared to do
+     * nothing.
+     */
+    @Test
+    public void cardsFetchedWhileTheQueueIsEmptyArriveOnTheirOwn() {
+        open();
+        assertFalse("nothing is cached yet, so there is nothing to answer",
+                state().view().hasCard());
+
+        // As the sync writes them: the same database instance, from outside this view model.
+        cacheCard(1L, TODAY);
+        idle();
+
+        assertEquals("a sync that fetched a card and could not show it is the empty state lying",
+                1L, state().view().card().id);
+        assertFalse("a card arriving unasked must still arrive face down", state().revealed());
+    }
+
+    /**
+     * The other half of the rule, and the reason it is a rule rather than a plain subscription:
+     * a card being answered is never taken away by a write from somewhere else.
+     */
+    @Test
+    public void aSyncDoesNotReplaceTheCardSomebodyIsAnswering() {
+        cacheCard(1L, TODAY);
+        open();
+        model.reveal();
+
+        // A sync landing mid-question, carrying a card that sorts ahead of the one on screen.
+        cacheCard(0L, TODAY.minusDays(3));
+        idle();
+
+        assertEquals("the question must not change between the reveal and the button press",
+                1L, state().view().card().id);
+        assertTrue("nor may the answer be taken away while it is being read", state().revealed());
+    }
+
     // ---- fixtures -----------------------------------------------------------------------------
 
     private void open() {
-        model = new StudyViewModel(RuntimeEnvironment.getApplication(),
+        model = new StudyViewModel(RuntimeEnvironment.getApplication(), db,
                 new StudyRepository(db, FIXED), new ReviewRepository(db, FIXED), DIRECT);
         idle();
     }
