@@ -116,6 +116,12 @@
 
         A squircle rather than a circle: it is the one control on this screen that is not a row
         or a chip, and at 21dp it belongs to the same family of corners as everything else.
+
+        fabCustomSize repeats the 60dp on purpose, and is not redundant with the layout size. A
+        FloatingActionButton positions its icon against its own fabSize - NORMAL, 56dp, by
+        default - rather than against the bounds it was measured at, so a layout_width the FAB
+        has not been told about leaves the icon centred in a 56dp box in the corner of a 60dp
+        view: 2dp up and 2dp left of where it belongs. Visible, and invisible to every test.
     -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/cards_new"
@@ -125,6 +131,7 @@
         android:layout_margin="16dp"
         android:contentDescription="@string/cards_new"
         android:src="@drawable/ic_add"
+        app:fabCustomSize="60dp"
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Flashcards.Fab" />
 
 </FrameLayout>
