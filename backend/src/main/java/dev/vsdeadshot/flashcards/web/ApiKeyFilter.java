@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -18,7 +19,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * a wrong key gets {@code 401} whether the endpoint is real or not.
  */
 @Component
+@Order(ApiKeyFilter.ORDER)
 public class ApiKeyFilter extends OncePerRequestFilter {
+
+    /**
+     * First of this application's filters, and stated rather than left to chance. Two filter
+     * beans with no order between them are ordered arbitrarily, so the guarantee that an
+     * unauthenticated request is refused before anything else looks at it would otherwise rest
+     * on nothing. {@link RequestSizeLimitFilter} places itself relative to this.
+     */
+    public static final int ORDER = 10;
 
     public static final String HEADER = "X-API-Key";
 
