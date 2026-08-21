@@ -10,7 +10,6 @@ import dev.vsdeadshot.flashcards.repository.TopicRepository;
 import java.util.List;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Assembles a prompt, asks the generator, and decides what came back is usable.
@@ -40,11 +39,14 @@ public class CardGenerator {
     private final TopicRepository topics;
     private final CardRepository cards;
     private final GeminiClient gemini;
+    private final GenerationQuota quota;
 
-    public CardGenerator(TopicRepository topics, CardRepository cards, GeminiClient gemini) {
+    public CardGenerator(TopicRepository topics, CardRepository cards, GeminiClient gemini,
+            GenerationQuota quota) {
         this.topics = topics;
         this.cards = cards;
         this.gemini = gemini;
+        this.quota = quota;
     }
 
     /**
@@ -52,8 +54,14 @@ public class CardGenerator {
      *              refused at or below zero — the asymmetry the study queue's {@code limit}
      *              already uses, because asking for too many is not a mistake worth refusing and
      *              asking for none is never anything but a bug.
+     *
+     * <p>Deliberately <strong>not</strong> {@code @Transactional}. This method waits on a call
+     * that is allowed to take 45 seconds, and a transaction spanning it would hold a pooled
+     * database connection for the whole time — ten of those and the pool is gone, with every
+     * other endpoint blocked behind a feature one person is using. The reads here are
+     * independent lookups that need no shared snapshot, and the one write that must be durable
+     * before the upstream call is {@link GenerationQuota}'s, which commits in its own.
      */
-    @Transactional(readOnly = true)
     public List<GeneratedCard> generate(String userId, long topicId, String focus, Integer count) {
         Topic topic = topics.findByIdAndUserId(topicId, userId)
                 .orElseThrow(() -> new NotFoundException("topic", topicId));
@@ -62,10 +70,15 @@ public class CardGenerator {
         if (requested <= 0) {
             throw new IllegalArgumentException("count must be greater than zero, was " + requested);
         }
+        int asking = Math.min(requested, MAX_COUNT);
+
+        // After the topic and the count are known good, so a request that was never going to
+        // reach the generator does not spend part of the day's allowance on being wrong.
+        quota.consume(userId, asking);
 
         List<String> avoid = cards.findRecentFronts(userId, topicId, AVOID_LIMIT);
-        List<GeneratedCard> generated = gemini.generate(new GenerationPrompt(
-                topic.getName(), focus, avoid, Math.min(requested, MAX_COUNT)));
+        List<GeneratedCard> generated =
+                gemini.generate(new GenerationPrompt(topic.getName(), focus, avoid, asking));
 
         // Dropping beats failing: one malformed candidate should not cost the other nine, and the
         // caller is going to read every one of these before any of them becomes a card anyway.

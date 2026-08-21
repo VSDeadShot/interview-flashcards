@@ -144,6 +144,11 @@ Fix it and save to try again.</string>
     <string name="generate_error_refused">The generator had nothing to add for that. Try a different focus.</string>
     <string name="generate_error_offline">Generating needs a connection.</string>
     <string name="generate_error_misconfigured">Card generation is not set up correctly on the server. Retrying will not help.</string>
+    <!-- A fifth failure, and the reason it is not folded into "busy": that one says try again
+         shortly, and shortly is wrong. The daily allowance exists so generating cannot run up an
+         unbounded bill, and it comes back at midnight rather than in a moment. Saying tomorrow is
+         what stops somebody retrying all evening. -->
+    <string name="generate_error_limit">That is all the card generation for today. The limit resets tomorrow.</string>
     <plurals name="generate_done">
         <item quantity="one">%d card ready to review</item>
         <item quantity="other">%d cards ready to review</item>

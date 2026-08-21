@@ -390,13 +390,35 @@ alongside the account, applied where `LocalDate.now(clock)` is called today.
 
 `400` validation · `401` bad/missing key · `404` unknown id · `409` duplicate topic slug,
 or a retry conflict — see [Retrying safely](#retrying-safely) for the `retryable` field that
-separates the two · `422` the generator answered with nothing
-usable · `503` the generator is rate-limited, down, or not configured
+separates the two · `413` the request body exceeds 256KB · `422` the generator answered with
+nothing usable · `429` today's generation allowance is spent · `503` the generator is
+rate-limited, down, or not configured
 
 `422` and `503` are deliberately different answers to a failed generation. A `503` invites a
 retry; a `422` would be lying if it did, because the same request will produce the same nothing.
 A rejected Gemini credential is neither — it is a `500`, since it is not the caller's to fix and
 nothing about it should be discoverable.
+
+`429` is a fourth answer again, and only `POST /cards/generate` returns it. Generation is the one
+route that costs money per call, so it is the one route that is rationed: **20 generations per
+owner per day**, counted from an append-only `generation_request` row written before the upstream
+call. Attempts are counted rather than successes, because a call that reached the generator and
+failed has already been paid for.
+
+The refusal carries a `Retry-After` header and repeats the same figure as `retryAfterSeconds` in
+the body, alongside the `limit` that was hit:
+
+```jsonc
+{ "status": 429, "title": "Generation limit reached", "limit": 20, "retryAfterSeconds": 12645 }
+```
+
+It runs to the next local midnight rather than being a fixed cooldown, so a client can say when
+the allowance returns instead of inviting a poll. That distinction is why this is not folded into
+`503`: "try again shortly" is true of an upstream hiccup and false of a spent daily allowance.
+
+`413` is refused by a filter ahead of the handlers, before the body is read, so it applies to
+every route. A request that declares no length is bounded as it is read instead and surfaces as a
+`400`.
 
 ## Open questions
 

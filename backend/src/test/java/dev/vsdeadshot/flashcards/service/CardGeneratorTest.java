@@ -1,7 +1,9 @@
 package dev.vsdeadshot.flashcards.service;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +42,9 @@ class CardGeneratorTest extends EmbeddedPostgresTest {
     @Autowired
     private Clock clock;
 
+    @Autowired
+    private GenerationQuota quota;
+
     private Topic topic;
 
     /** Records the prompt it was handed, so a test can assert on what the model was told. */
@@ -69,7 +74,7 @@ class CardGeneratorTest extends EmbeddedPostgresTest {
     }
 
     private CardGenerator generatorFor(RecordingClient client) {
-        return new CardGenerator(topics, cards, client);
+        return new CardGenerator(topics, cards, client, quota);
     }
 
     private Card saveCard(String front) {
@@ -221,6 +226,49 @@ class CardGeneratorTest extends EmbeddedPostgresTest {
             assertThrows(NotFoundException.class,
                     () -> generator.generate(USER, 999_999L, null, 3),
                     "an id that does not exist is not found, like everywhere else");
+        }
+    }
+
+    /**
+     * The daily allowance itself is {@link GenerationQuotaTest}'s subject. What matters here is
+     * where it sits relative to the upstream call, which is the only thing that decides whether
+     * a limit saves any money.
+     */
+    @Nested
+    @DisplayName("spending the daily allowance")
+    class Allowance {
+
+        @Test
+        @DisplayName("does not reach the generator once the allowance is spent")
+        void anExhaustedAllowanceStopsTheCall() {
+            RecordingClient client = clientReturning(new GeneratedCard("Q", "A"));
+            CardGenerator generator = generatorFor(client);
+            for (int i = 0; i < GenerationQuota.MAX_PER_DAY; i++) {
+                generator.generate(USER, topic.getId(), null, 3);
+            }
+            client.seen = null;
+
+            assertThrows(GenerationLimitExceededException.class,
+                    () -> generator.generate(USER, topic.getId(), null, 3),
+                    "the call past the allowance must be refused");
+            assertNull(client.seen,
+                    "and refused before the generator is asked -- a limit checked afterwards has "
+                            + "already paid for the request it was meant to prevent");
+        }
+
+        @Test
+        @DisplayName("does not spend allowance on a topic that was never going to be generated for")
+        void anUnknownTopicCostsNothing() {
+            CardGenerator generator = generatorFor(clientReturning(new GeneratedCard("Q", "A")));
+
+            assertThrows(NotFoundException.class,
+                    () -> generator.generate(USER, 999_999L, null, 3));
+
+            assertDoesNotThrow(() -> {
+                for (int i = 0; i < GenerationQuota.MAX_PER_DAY; i++) {
+                    generator.generate(USER, topic.getId(), null, 3);
+                }
+            }, "a request refused before it reached the generator should leave the day intact");
         }
     }
 }

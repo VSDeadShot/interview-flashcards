@@ -43,13 +43,28 @@ public class GenerateErrorMessageTest {
                 R.string.generate_error_misconfigured, GenerateViewModel.messageFor(401));
     }
 
+    /**
+     * The one the default would get most wrong. A spent daily allowance is not a broken server,
+     * and the misconfigured message tells somebody that retrying will never help — which is the
+     * opposite of true here, since the limit comes back at midnight.
+     */
     @Test
-    public void theFourMessagesAreActuallyDifferentStrings() {
+    public void aSpentDailyAllowanceIsNotABrokenServer() {
+        assertEquals("429 is the day's generation limit, which resets rather than staying broken",
+                R.string.generate_error_limit, GenerateViewModel.messageFor(429));
+        assertNotEquals("and it must not be reported as something a retry can never fix",
+                R.string.generate_error_misconfigured, GenerateViewModel.messageFor(429));
+    }
+
+    @Test
+    public void theFiveMessagesAreActuallyDifferentStrings() {
         // Distinct ids are what makes the assertions above mean anything; two names pointing at
         // one resource would let every case pass while saying the same unhelpful thing.
         assertNotEquals(R.string.generate_error_busy, R.string.generate_error_refused);
         assertNotEquals(R.string.generate_error_busy, R.string.generate_error_misconfigured);
         assertNotEquals(R.string.generate_error_refused, R.string.generate_error_misconfigured);
         assertNotEquals(R.string.generate_error_offline, R.string.generate_error_misconfigured);
+        assertNotEquals(R.string.generate_error_limit, R.string.generate_error_busy);
+        assertNotEquals(R.string.generate_error_limit, R.string.generate_error_misconfigured);
     }
 }

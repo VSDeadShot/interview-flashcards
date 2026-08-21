@@ -2,12 +2,15 @@ package dev.vsdeadshot.flashcards.web;
 
 import dev.vsdeadshot.flashcards.service.ConcurrentRequestException;
 import dev.vsdeadshot.flashcards.service.DuplicateTopicException;
+import dev.vsdeadshot.flashcards.service.GenerationLimitExceededException;
 import dev.vsdeadshot.flashcards.service.IdempotencyKeyReuseException;
 import dev.vsdeadshot.flashcards.service.NotFoundException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import dev.vsdeadshot.flashcards.ai.GenerationRefusedException;
 import dev.vsdeadshot.flashcards.ai.GenerationUnavailableException;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -105,6 +108,28 @@ public class ApiExceptionHandler {
     @ExceptionHandler(GenerationRefusedException.class)
     public ProblemDetail handleGenerationRefused(GenerationRefusedException e) {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Generation refused", e.getMessage());
+    }
+
+    /**
+     * The only place this API answers {@code 429}. Generation is also the only thing it does
+     * that costs money per call, which is why it is the only thing rationed.
+     *
+     * <p>Returns a {@link ResponseEntity} rather than a bare {@link ProblemDetail} so the answer
+     * can carry {@code Retry-After}. The same figure is repeated in the body: the header is what
+     * a proxy or an HTTP library understands, the field is what a client that already parses
+     * {@code problem+json} for every other failure will actually read.
+     */
+    @ExceptionHandler(GenerationLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleGenerationLimit(GenerationLimitExceededException e) {
+        ProblemDetail problem =
+                problem(HttpStatus.TOO_MANY_REQUESTS, "Generation limit reached", e.getMessage());
+        problem.setProperty("limit", e.getLimit());
+        // Named in seconds rather than as a timestamp, because the question is how long to wait
+        // and a client would otherwise have to trust its own clock against the server's.
+        problem.setProperty("retryAfterSeconds", e.getRetryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
+                .body(problem);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

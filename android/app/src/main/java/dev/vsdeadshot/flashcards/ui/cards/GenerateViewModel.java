@@ -59,19 +59,24 @@ public final class GenerateViewModel extends AndroidViewModel {
      * <p>Takes the status rather than the exception so it can be tested from outside
      * {@code data.remote}, whose {@code ApiException} constructor is package-private.
      *
-     * <p><strong>Only 503 invites a retry.</strong> The backend answers 503 for an upstream
-     * that did not respond, 422 for a model that had nothing usable to say, and a bodyless 500
-     * for our own credential or model name being wrong -- which {@code ApiExceptionHandler}
-     * leaves unmapped on purpose, so nothing about the misconfiguration is described to a
-     * caller. Defaulting the unrecognised case to "busy, try again shortly" made this side
-     * repeat the mistake that was fixed one layer down: a request the server has rejected as
-     * ours is not a passing outage, and telling somebody to wait for a key to start working
-     * asks them to wait forever.
+     * <p><strong>Only 503 invites a retry now, and 429 invites one tomorrow.</strong> The backend
+     * answers 503 for an upstream that did not respond, 422 for a model that had nothing usable
+     * to say, 429 when the day's generation allowance is spent, and a bodyless 500 for our own
+     * credential or model name being wrong -- which {@code ApiExceptionHandler} leaves unmapped
+     * on purpose, so nothing about the misconfiguration is described to a caller. Defaulting the
+     * unrecognised case to "busy, try again shortly" made this side repeat the mistake that was
+     * fixed one layer down: a request the server has rejected as ours is not a passing outage,
+     * and telling somebody to wait for a key to start working asks them to wait forever.
+     *
+     * <p>429 has to be named here for that same reason inverted. Left to the default it would be
+     * reported as a server that is set up wrongly and will never work, when in fact nothing is
+     * wrong and it works again at midnight — the most misleading answer of the five.
      */
     @StringRes
     static int messageFor(int status) {
         return switch (status) {
             case 422 -> R.string.generate_error_refused;
+            case 429 -> R.string.generate_error_limit;
             case 503 -> R.string.generate_error_busy;
             default -> R.string.generate_error_misconfigured;
         };
