@@ -23,6 +23,11 @@
         <item quantity="other">%1$d days</item>
     </plurals>
     <string name="stats_streak_as_of">Last fetched %1$s</string>
+    <!-- Its own sentence rather than a relative span, because every span short enough to land
+         here rounds to a zero: "0 minutes ago" for a sync that has just finished, and "0 seconds
+         ago" if the resolution is dropped to seconds. A figure fetched moments ago is as current
+         as this screen can claim, and that is what it should say. -->
+    <string name="stats_streak_as_of_now">Last fetched just now</string>
     <!-- Shown instead of the number, never beside a zero. The streak is worked out on the server
          because its rule needs the whole review history; telling somebody thirty days into a run
          that they are on nothing is the worst thing this screen could do. -->

@@ -130,6 +130,21 @@ public class StatsFragmentTest {
     }
 
     /**
+     * The most likely way to be reading this line at all is to have just pressed sync, and every
+     * relative span that short rounds to a zero — "0 minutes ago" for a figure that arrived a
+     * second earlier, which reads as a staleness rather than as the freshness it is.
+     */
+    @Test
+    public void aStreakFetchedMomentsAgoDoesNotSayZero() throws Exception {
+        cacheStreak(5, Instant.now());
+
+        openStats();
+
+        assertEquals(activity.getString(R.string.stats_streak_as_of_now),
+                text(R.id.stats_streak_detail));
+    }
+
+    /**
      * A topic whose cards are all archived still exists, and nothing deletes topics. Dropping its
      * row when the count reaches zero would read as the topic itself having been deleted.
      */

@@ -149,10 +149,14 @@ public final class StatsFragment extends Fragment {
         // A streak with no "as of" claims to be current, and this one is only ever as current as
         // the last sync. Relative rather than a timestamp because the question it answers is how
         // stale the figure is, not when it was taken.
-        detail.setText(getString(R.string.stats_streak_as_of, DateUtils.getRelativeTimeSpanString(
-                stats.streakAsOf().toEpochMilli(),
-                System.currentTimeMillis(),
-                DateUtils.MINUTE_IN_MILLIS)));
+        long fetchedAt = stats.streakAsOf().toEpochMilli();
+        long ago = System.currentTimeMillis() - fetchedAt;
+        // Under a minute is said in words. Every relative span this short rounds to a zero, and
+        // the most likely way to be looking at this line at all is to have just pressed sync.
+        detail.setText(ago < DateUtils.MINUTE_IN_MILLIS
+                ? getString(R.string.stats_streak_as_of_now)
+                : getString(R.string.stats_streak_as_of, DateUtils.getRelativeTimeSpanString(
+                        fetchedAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)));
     }
 
     private void drawTopics(@NonNull View view, @NonNull StatsView stats) {
