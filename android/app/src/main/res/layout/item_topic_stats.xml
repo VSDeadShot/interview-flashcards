@@ -66,6 +66,13 @@
         through them, which nothing here could claim: a card falls back out of the filled part
         the moment its interval elapses.
     -->
+    <!--
+        The stop indicator is turned off rather than left at the Material default. It is a dot
+        drawn at the end of the track to mark where full would be, which is information this bar
+        does not need - the track already ends there - and on a topic with nothing under control
+        the bar is empty, so the dot becomes the only mark on it and reads as a speck of dirt
+        rather than as a measurement.
+    -->
     <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/topic_progress"
         android:layout_width="match_parent"
@@ -73,6 +80,7 @@
         android:layout_marginTop="9dp"
         app:trackColor="?attr/colorSurfaceContainerHigh"
         app:trackCornerRadius="3dp"
+        app:trackStopIndicatorSize="0dp"
         app:trackThickness="5dp" />
 
 </LinearLayout>
