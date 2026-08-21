@@ -30,6 +30,8 @@ From `backend/`:
 
 It also **binds `127.0.0.1` rather than every interface** (`server.address`). One static key over plain HTTP has no business being offered to the local network, and the emulator is unaffected because `10.0.2.2` is its alias for the host’s loopback. Reaching it from a real device means setting `FLASHCARDS_BIND_ADDRESS` for that session — deliberately an opt-in, not the default.
 
+That database server should listen on loopback only (`listen_addresses = 'localhost'`). `pg_hba.conf` is what actually refuses a remote login — it permits `127.0.0.1/32` and `::1/128` under `scram-sha-256` and nothing else — and that was verified rather than assumed: a connection from the machine’s own LAN address completed the TCP handshake and was then refused with *no pg_hba.conf entry*. Narrowing `listen_addresses` removes the pre-auth surface sitting behind that check, which is the half a host-based rule cannot cover.
+
 `./gradlew test` needs none of that. Tests start their own Postgres (see below).
 
 From `android/`:
