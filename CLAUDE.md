@@ -28,6 +28,8 @@ From `backend/`:
 
 `bootRun` requires a local PostgreSQL 17 on `127.0.0.1:5432`, database `flashcards`, owned by a non-superuser role `flashcards`, plus the `FLASHCARDS_DB_PASSWORD` environment variable. There is no fallback value for that variable on purpose — a missing one fails startup loudly rather than silently trying a default credential.
 
+It also **binds `127.0.0.1` rather than every interface** (`server.address`). One static key over plain HTTP has no business being offered to the local network, and the emulator is unaffected because `10.0.2.2` is its alias for the host’s loopback. Reaching it from a real device means setting `FLASHCARDS_BIND_ADDRESS` for that session — deliberately an opt-in, not the default.
+
 `./gradlew test` needs none of that. Tests start their own Postgres (see below).
 
 From `android/`:
@@ -187,7 +189,7 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 - **`ProblemInterceptor` turns every non-2xx into an `ApiException` before Retrofit sees it**, so a failure cannot be ignored by accident. The trade is that a non-2xx body is no longer readable through Retrofit; nothing needs it.
 - **`ApiException.disposition()` is the single place that decides what a failure means** — `RETRY`, `DROP`, or `STOP`. A `409` is the only status the server disambiguates for us, via `retryable`: true is a raced idempotency key, false is a reused one. A `409` with no `retryable` field is treated as permanent, because a retry loop on a conflict is the worse of the two failures.
 - **`401` carries no body at all** — the filter rejects before any handler runs, so there is no `problem+json`, no content type, and nothing to parse. Verified against the running backend, and the test says so.
-- Cleartext HTTP is permitted in **debug builds only**, and only for `10.0.2.2` and `localhost`, rather than as a blanket exemption. A real device on the LAN means adding that host to `app/src/debug/res/xml/network_security_config.xml` and setting `flashcards.baseUrl`.
+- Cleartext HTTP is permitted in **debug builds only**, and only for `10.0.2.2` and `localhost`, rather than as a blanket exemption. A real device on the LAN means adding that host to `app/src/debug/res/xml/network_security_config.xml`, setting `flashcards.baseUrl`, and starting the backend with `FLASHCARDS_BIND_ADDRESS` — all three, since the server otherwise listens on loopback alone.
 
 ### The UI
 
