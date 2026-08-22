@@ -142,8 +142,9 @@ Confidence 4 leaves EF untouched: `0.1 - 1 * (0.08 + 1 * 0.02) = 0`.
 
 ## Endpoints
 
-Base path `/api/v1`. Every request requires `X-API-Key`. Missing or wrong key
-returns `401` with no body.
+Base path `/api/v1`. Every request under it requires `X-API-Key`. Missing or wrong key
+returns `401` with no body. `GET /health` is the sole exception and sits outside that
+base path — see [Health](#health).
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -157,6 +158,25 @@ returns `401` with no body.
 | `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?, clientReviewId?}` | `Card` with updated schedule |
 | `POST` | `/cards/generate` | `{topicId, focus?, count?}` | `200` + `{candidates: [{front, back}]}` |
 | `GET` | `/stats` | — | `Stats` |
+
+### Health
+
+`GET /health` → `200 {"status":"UP"}`. Not part of the client contract; no client calls it.
+It exists for a hosting platform's liveness probe and is **the only unauthenticated route in
+the application**.
+
+It is outside `/api/v1` deliberately, which is what exempts it from the key filter — a probe
+cannot present a credential, and a health check answering `401` reads as an instance that never
+became healthy, so the platform restarts it forever. Because the exemption is a property of the
+path rather than a list of excluded routes, a later change of credential inherits it unchanged.
+
+**It does not check the database.** A platform's health check is wired to restarting the
+process, so failing it during a database outage turns an outage into a restart loop that cannot
+repair it. Startup covers the rest: Flyway migrates and Hibernate validates before the first
+request is served, so an instance answering this at all has a schema it agrees with.
+
+The body carries nothing else — no version, no build stamp, no dependency status — because
+whatever it returns is returned to anyone who asks.
 
 ### Archiving
 
