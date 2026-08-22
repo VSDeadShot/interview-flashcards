@@ -1,0 +1,10 @@
+# Build output and caches. These are the developer machine's, and on Windows they are also the
+# wrong platform's -- copying them in would put a locally compiled tree where the image build
+# expects to produce its own.
+build/
+.gradle/
+
+# Nothing in the image reads these, and the smaller the context the faster every build.
+.git/
+.gitignore
+*.md

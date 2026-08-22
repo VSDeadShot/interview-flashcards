@@ -1,0 +1,11 @@
+# The Gradle wrappers are shell scripts that now also run inside a Linux image build. This
+# repository is developed on Windows with core.autocrlf=true, which checks text files out with
+# CRLF -- and a shell script whose shebang line ends in CR fails on Linux with "bad
+# interpreter", naming a path that looks correct.
+#
+# The committed blobs are already LF. This pins the working copy to LF as well, so a container
+# built locally from that working copy behaves the same as one Render builds from a fresh
+# clone. The .bat wrapper is pinned the other way for the same reason, in reverse.
+gradlew text eol=lf
+*.sh text eol=lf
+gradlew.bat text eol=crlf
