@@ -2,12 +2,14 @@ package dev.vsdeadshot.flashcards.web;
 
 import dev.vsdeadshot.flashcards.config.FlashcardsProperties;
 import dev.vsdeadshot.flashcards.service.AuthenticationFailedException;
+import dev.vsdeadshot.flashcards.service.LoginRateLimit;
 import dev.vsdeadshot.flashcards.service.PassphraseAuthenticator;
 import dev.vsdeadshot.flashcards.service.SignInNotConfiguredException;
 import dev.vsdeadshot.flashcards.service.TokenService;
 import dev.vsdeadshot.flashcards.web.dto.LoginRequest;
 import dev.vsdeadshot.flashcards.web.dto.RefreshTokenRequest;
 import dev.vsdeadshot.flashcards.web.dto.TokenResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,12 +35,14 @@ public class AuthController {
 
     private final PassphraseAuthenticator passphrases;
     private final TokenService tokens;
+    private final LoginRateLimit rateLimit;
     private final FlashcardsProperties properties;
 
     public AuthController(PassphraseAuthenticator passphrases, TokenService tokens,
-            FlashcardsProperties properties) {
+            LoginRateLimit rateLimit, FlashcardsProperties properties) {
         this.passphrases = passphrases;
         this.tokens = tokens;
+        this.rateLimit = rateLimit;
         this.properties = properties;
     }
 
@@ -49,14 +53,48 @@ public class AuthController {
      * resolved to, so nothing downstream of here moves.
      */
     @PostMapping("/login")
-    public TokenResponse login(@Valid @RequestBody LoginRequest request) {
+    public TokenResponse login(@Valid @RequestBody LoginRequest request,
+            HttpServletRequest http) {
         if (!passphrases.configured()) {
+            // Ahead of the limit deliberately. Nothing is hashed and no credential is consulted
+            // when sign-in is switched off, so there is no cost to bound and no attempt to count.
             throw new SignInNotConfiguredException();
         }
+
+        String source = clientAddress(http);
+        // Before the passphrase is checked, not after. Bcrypt is expensive on purpose, so a
+        // limit applied afterwards has already paid for the request it was meant to refuse --
+        // the same ordering GenerationQuota keeps in front of the model call.
+        rateLimit.check(source);
+
         if (!passphrases.matches(request.passphrase())) {
+            rateLimit.recordFailure(source);
             throw new AuthenticationFailedException();
         }
         return respond(tokens.issue(properties.userId()));
+    }
+
+    /**
+     * Where the attempt appears to come from.
+     *
+     * <p>Reads {@code getRemoteAddr()} rather than a header, which is what makes this correct in
+     * both deployments: behind a proxy {@code server.forward-headers-strategy} has Spring rewrite
+     * it from {@code X-Forwarded-For}, and locally there is no proxy and it is the peer address.
+     * The decision about whether a forwarded header can be trusted therefore lives in
+     * configuration, next to the bind address it depends on, rather than being re-made here.
+     *
+     * <p>Truncated to the column's width. An address longer than an IPv6 literal did not come
+     * from a proxy this application should be believing anyway, and a value that cannot be
+     * stored would fail the write that records the failure.
+     */
+    private static String clientAddress(HttpServletRequest http) {
+        String address = http.getRemoteAddr();
+        if (address == null || address.isBlank()) {
+            // Attributable to nothing, so it counts only against the global limit -- which is
+            // the one that cannot be evaded, and exactly the right place for it to land.
+            return "unknown";
+        }
+        return address.length() > 64 ? address.substring(0, 64) : address;
     }
 
     /**

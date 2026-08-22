@@ -175,7 +175,7 @@ path — see [Health](#health).
 | `DELETE` | `/cards/{id}` | — | `204` (archives, does not hard-delete) |
 | `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first. `limit` defaults to 20 and is clamped to 100 |
 | `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?, clientReviewId?}` | `Card` with updated schedule |
-| `POST` | `/auth/login` | `{passphrase}` | `200` + `{accessToken, expiresIn, refreshToken, refreshExpiresIn}` |
+| `POST` | `/auth/login` | `{passphrase}` | `200` + `{accessToken, expiresIn, refreshToken, refreshExpiresIn}`, or `429` when rate-limited |
 | `POST` | `/auth/refresh` | `{refreshToken}` | `200` + the same shape, both halves new |
 | `POST` | `/auth/logout` | `{refreshToken}` | `204` (revokes that family only) |
 | `POST` | `/cards/generate` | `{topicId, focus?, count?}` | `200` + `{candidates: [{front, back}]}` |
@@ -197,6 +197,11 @@ Two credentials are accepted, deliberately, while the client migrates from one t
   guessing would like drawn for them.
 - `400` if the passphrase is absent or blank — nothing was attempted, so reporting a rejected
   credential would describe an attempt that never happened.
+- `429` with `Retry-After` once too many sign-ins from one address have failed inside a rolling
+  fifteen-minute window (10). The correct passphrase is refused too while the limit holds —
+  deciding otherwise would mean checking the passphrase to find out, which is the expensive work
+  the limit exists to avoid doing. Only failures are counted, so using your own account never
+  locks you out of it.
 - `503` if no passphrase is configured on the server. Not `401`: the caller's credentials were
   never consulted, and saying they were sends them hunting a fault on their own side. Sign-in is
   a capability while the API key still works, the same way generation is a capability without a
@@ -215,6 +220,16 @@ the passphrase, where the input *is* low-entropy. Two different jobs.
 A request presenting a **bad** bearer token is refused outright rather than falling back to the
 key. Otherwise the answer would depend on which credential happened to be checked first, and a
 client holding a stale token would be quietly authenticated by a key it also still carried.
+
+**Why sign-in is rationed at all.** It is the one route an unauthenticated caller can put a body
+into, and it deliberately runs bcrypt, which is expensive by design — so it is both somewhere to
+guess a passphrase and somewhere to spend a small instance's CPU. The limit is checked *before*
+the hash, or the cost it bounds has already been paid.
+
+A second, higher limit counts failures from everywhere rather than per address. The per-address
+count keys on `X-Forwarded-For` behind a proxy, which a caller can vary per attempt; without a
+backstop the limit would offer assurance it does not provide. Its threshold is deliberately not
+documented or reported — a caller told what it is has been told how much room it has.
 
 Access tokens last **one hour**; refresh tokens **thirty days**. The long life is affordable only
 because using a refresh token replaces it — a long-lived credential that stayed valid after use

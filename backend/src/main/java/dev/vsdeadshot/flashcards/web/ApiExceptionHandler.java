@@ -5,6 +5,7 @@ import dev.vsdeadshot.flashcards.service.ConcurrentRequestException;
 import dev.vsdeadshot.flashcards.service.DuplicateTopicException;
 import dev.vsdeadshot.flashcards.service.GenerationLimitExceededException;
 import dev.vsdeadshot.flashcards.service.IdempotencyKeyReuseException;
+import dev.vsdeadshot.flashcards.service.LoginLimitExceededException;
 import dev.vsdeadshot.flashcards.service.NotFoundException;
 import dev.vsdeadshot.flashcards.service.SignInNotConfiguredException;
 import org.springframework.http.HttpHeaders;
@@ -154,6 +155,25 @@ public class ApiExceptionHandler {
      * Telling somebody their credentials were rejected when the server has none configured
      * sends them to look for a fault that is on this side.
      */
+    /**
+     * The second place this API answers {@code 429}, and unlike generation's it is not about
+     * money -- it is what stops an unauthenticated endpoint that deliberately runs bcrypt being
+     * used to search for a passphrase or to spend a small instance's CPU.
+     *
+     * <p>Says how long to wait and pointedly not how many attempts remain. A caller that is
+     * guessing would use the second to know exactly how hard it may push; one that is not has
+     * no use for it.
+     */
+    @ExceptionHandler(LoginLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleLoginLimit(LoginLimitExceededException e) {
+        ProblemDetail problem = problem(HttpStatus.TOO_MANY_REQUESTS,
+                "Too many sign-in attempts", e.getMessage());
+        problem.setProperty("retryAfterSeconds", e.getRetryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
+                .body(problem);
+    }
+
     @ExceptionHandler(SignInNotConfiguredException.class)
     public ProblemDetail handleSignInNotConfigured(SignInNotConfiguredException e) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "Sign-in unavailable", e.getMessage());

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import dev.vsdeadshot.flashcards.repository.AuthTokenRepository;
+import dev.vsdeadshot.flashcards.repository.LoginAttemptRepository;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,9 +53,19 @@ class AuthControllerTest extends EmbeddedPostgresTest {
     @Autowired
     private AuthTokenRepository tokens;
 
+    @Autowired
+    private LoginAttemptRepository attempts;
+
+    /**
+     * Both tables, not just the tokens. The refused sign-ins below leave rows in
+     * {@code login_attempt}, and one embedded Postgres is shared by the whole test JVM -- so
+     * leaving them behind spends part of the sign-in allowance for whichever class runs next.
+     * That is not hypothetical: it is what this method was extended to fix.
+     */
     @AfterEach
-    void clearTokens() {
+    void clearAuthTables() {
         tokens.deleteAll();
+        attempts.deleteAll();
     }
 
     private String login(String passphrase) throws Exception {
