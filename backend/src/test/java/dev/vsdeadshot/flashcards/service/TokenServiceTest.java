@@ -6,12 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.vsdeadshot.flashcards.domain.AuthToken;
+import dev.vsdeadshot.flashcards.domain.TokenKind;
 import dev.vsdeadshot.flashcards.repository.AuthTokenRepository;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,7 +44,7 @@ class TokenServiceTest extends EmbeddedPostgresTest {
         void issuesAUsableToken() {
             TokenService.Issued issued = tokens.issue(USER);
 
-            assertEquals(Optional.of(USER), tokens.authenticate(issued.token()),
+            assertEquals(Optional.of(USER), tokens.authenticate(issued.accessToken()),
                     "a token just issued must authenticate the owner it was issued to");
             assertEquals(TokenService.ACCESS_TOKEN_TTL.toSeconds(), issued.expiresInSeconds(),
                     "the caller is told how long it has, in seconds it can count down itself");
@@ -57,10 +59,11 @@ class TokenServiceTest extends EmbeddedPostgresTest {
         void storesOnlyADigest() {
             TokenService.Issued issued = tokens.issue(USER);
 
-            assertTrue(repository.findByTokenHash(issued.token()).isEmpty(),
+            assertTrue(repository.findByTokenHash(issued.accessToken()).isEmpty(),
                     "the raw token must not be what the row is keyed by -- if this finds a row, "
                             + "the token itself is sitting in the database");
-            assertEquals(1, repository.count(), "and exactly one row should have been written");
+            assertEquals(2, repository.count(),
+                    "a sign-in writes the access token and its refresh token, both digested");
         }
 
         @Test
@@ -68,7 +71,7 @@ class TokenServiceTest extends EmbeddedPostgresTest {
         void issuesDistinctTokens() {
             // Not a test of randomness, which no test can be. It catches the failure that would
             // actually happen: material generated once and reused, or a seed fixed by accident.
-            assertNotEquals(tokens.issue(USER).token(), tokens.issue(USER).token(),
+            assertNotEquals(tokens.issue(USER).accessToken(), tokens.issue(USER).accessToken(),
                     "two tokens issued in a row must not be the same value");
         }
     }
@@ -80,7 +83,8 @@ class TokenServiceTest extends EmbeddedPostgresTest {
         private void store(Instant createdAt, Instant expiresAt, boolean revoked) {
             // Written straight to the repository so the clock does not have to be wound
             // forward -- the same approach GenerationQuotaTest takes to yesterday.
-            AuthToken token = new AuthToken(USER, "a".repeat(64), createdAt, expiresAt);
+            AuthToken token = new AuthToken(USER, "a".repeat(64), TokenKind.ACCESS,
+                    UUID.randomUUID(), createdAt, expiresAt);
             if (revoked) {
                 token.revoke(createdAt);
             }

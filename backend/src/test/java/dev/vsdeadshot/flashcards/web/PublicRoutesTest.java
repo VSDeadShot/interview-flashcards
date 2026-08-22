@@ -39,6 +39,11 @@ class PublicRoutesTest extends EmbeddedPostgresTest {
     private static final Set<String> EXPECTED_PUBLIC = Set.of(
             "/health",
             "/api/v1/auth/login",
+            // Both are how a credential is obtained or given up, so both must answer without
+            // one. Refresh especially: the case it exists for is the one where the access token
+            // has already expired.
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/logout",
             // Spring Boot's own error dispatch target, which this application does not declare
             // and cannot remove without giving up the error handling every other route relies
             // on. It is listed because this test found it rather than because anyone chose it,
@@ -63,7 +68,7 @@ class PublicRoutesTest extends EmbeddedPostgresTest {
     }
 
     @Test
-    @DisplayName("are exactly the three that have a reason to be")
+    @DisplayName("are exactly the five that have a reason to be")
     void areExactlyTheExpectedOnes() {
         Set<String> actuallyPublic = new TreeSet<>();
         for (String path : mappedPaths()) {

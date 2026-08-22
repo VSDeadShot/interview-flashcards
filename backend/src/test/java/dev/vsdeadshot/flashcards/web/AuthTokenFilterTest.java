@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.vsdeadshot.flashcards.domain.AuthToken;
+import dev.vsdeadshot.flashcards.domain.TokenKind;
 import dev.vsdeadshot.flashcards.repository.AuthTokenRepository;
 import dev.vsdeadshot.flashcards.service.TokenService;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
@@ -14,6 +15,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -61,7 +63,7 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
     }
 
     private String bearer() {
-        return "Bearer " + tokens.issue(TEST_USER_ID).token();
+        return "Bearer " + tokens.issue(TEST_USER_ID).accessToken();
     }
 
     /**
@@ -126,6 +128,7 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
             // Planted with an expiry already behind it, since the clock cannot be wound forward
             // and waiting an hour is not a test.
             repository.save(new AuthToken(TEST_USER_ID, digestOf(PLANTED_TOKEN),
+                    TokenKind.ACCESS, UUID.randomUUID(),
                     now.minus(Duration.ofHours(2)), now.minus(Duration.ofHours(1))));
 
             mvc.perform(get(ROUTE).header(HttpHeaders.AUTHORIZATION, "Bearer " + PLANTED_TOKEN))
@@ -137,7 +140,7 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
         void refusesARevokedToken() throws Exception {
             Instant now = clock.instant();
             AuthToken token = new AuthToken(TEST_USER_ID, digestOf(PLANTED_TOKEN),
-                    now, now.plus(Duration.ofHours(1)));
+                    TokenKind.ACCESS, UUID.randomUUID(), now, now.plus(Duration.ofHours(1)));
             token.revoke(now);
             repository.save(token);
 

@@ -6,9 +6,12 @@ import dev.vsdeadshot.flashcards.service.PassphraseAuthenticator;
 import dev.vsdeadshot.flashcards.service.SignInNotConfiguredException;
 import dev.vsdeadshot.flashcards.service.TokenService;
 import dev.vsdeadshot.flashcards.web.dto.LoginRequest;
+import dev.vsdeadshot.flashcards.web.dto.RefreshTokenRequest;
 import dev.vsdeadshot.flashcards.web.dto.TokenResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,7 +56,39 @@ public class AuthController {
         if (!passphrases.matches(request.passphrase())) {
             throw new AuthenticationFailedException();
         }
-        TokenService.Issued issued = tokens.issue(properties.userId());
-        return new TokenResponse(issued.token(), issued.expiresInSeconds());
+        return respond(tokens.issue(properties.userId()));
+    }
+
+    /**
+     * Exchanges a refresh token for the next pair. The presented one stops working in the same
+     * transaction that issues its successor.
+     *
+     * <p>Answers {@code 401} for every way this can fail -- unknown, expired, revoked, the wrong
+     * kind of token, or already exchanged. A client's response to all of them is the same: sign
+     * in again. Distinguishing "already exchanged" in the response would tell whoever presented
+     * a copied token exactly what had been noticed about it.
+     */
+    @PostMapping("/refresh")
+    public TokenResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return respond(tokens.refresh(request.refreshToken()));
+    }
+
+    /**
+     * Ends the session this refresh token belongs to -- that chain only, not every token the
+     * user holds, so signing out on one device leaves another alone.
+     *
+     * <p>{@code 204} whether or not the token was recognised. Reporting an unknown token would
+     * tell somebody probing whether a value they hold is real, and a client signing out has
+     * nothing to do differently either way.
+     */
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(@Valid @RequestBody RefreshTokenRequest request) {
+        tokens.logout(request.refreshToken());
+    }
+
+    private static TokenResponse respond(TokenService.Issued issued) {
+        return new TokenResponse(issued.accessToken(), issued.expiresInSeconds(),
+                issued.refreshToken(), issued.refreshExpiresInSeconds());
     }
 }

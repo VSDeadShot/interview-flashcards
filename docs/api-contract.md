@@ -95,6 +95,9 @@ permanent answer to a retry: the row it lives on is never removed or rewritten.
 | `expires_at` | `timestamptz` | not null, `check (expires_at > created_at)` |
 | `created_at` | `timestamptz` | not null, default `now()` |
 | `revoked_at` | `timestamptz` | nullable — set when a token is withdrawn before it expires |
+| `kind` | `varchar(16)` | not null, `check (kind in ('ACCESS','REFRESH'))` |
+| `family_id` | `uuid` | not null — the rotation chain; revoking one withdraws every token in it |
+| `rotated_at` | `timestamptz` | nullable — set when a refresh token is exchanged. Distinct from `revoked_at`: revoked means withdrawn, rotated means spent, and only the second makes a later presentation evidence of a copy |
 
 Rows are never deleted, so what was issued and what became of it stays answerable. The unique
 constraint on `token_hash` is also the index every authenticated request looks a token up by,
@@ -172,7 +175,9 @@ path — see [Health](#health).
 | `DELETE` | `/cards/{id}` | — | `204` (archives, does not hard-delete) |
 | `GET` | `/study/queue?limit=20` | — | `[Card]` where `due_date <= today`, oldest due first. `limit` defaults to 20 and is clamped to 100 |
 | `POST` | `/study/{cardId}/review` | `{confidence, reviewedAt?, clientReviewId?}` | `Card` with updated schedule |
-| `POST` | `/auth/login` | `{passphrase}` | `200` + `{accessToken, expiresIn}` |
+| `POST` | `/auth/login` | `{passphrase}` | `200` + `{accessToken, expiresIn, refreshToken, refreshExpiresIn}` |
+| `POST` | `/auth/refresh` | `{refreshToken}` | `200` + the same shape, both halves new |
+| `POST` | `/auth/logout` | `{refreshToken}` | `204` (revokes that family only) |
 | `POST` | `/cards/generate` | `{topicId, focus?, count?}` | `200` + `{candidates: [{front, back}]}` |
 | `GET` | `/stats` | — | `Stats` |
 
@@ -185,7 +190,7 @@ Two credentials are accepted, deliberately, while the client migrates from one t
 | Shared API key | `X-API-Key: <key>` | Being retired. Extractable from any client build that carries it. |
 | Bearer token | `Authorization: Bearer <token>` | The replacement. Obtained by signing in, expires on its own, revocable. |
 
-`POST /api/v1/auth/login` — `{passphrase}` → `200 {accessToken, expiresIn}`.
+`POST /api/v1/auth/login` — `{passphrase}` → `200 {accessToken, expiresIn, refreshToken, refreshExpiresIn}`.
 
 - `401`, **no body**, if the passphrase is wrong. Naming the failure would separate a wrong
   passphrase from every other reason to refuse, which is exactly the distinction somebody
@@ -211,8 +216,34 @@ A request presenting a **bad** bearer token is refused outright rather than fall
 key. Otherwise the answer would depend on which credential happened to be checked first, and a
 client holding a stale token would be quietly authenticated by a key it also still carried.
 
-Access tokens last **one hour**. Refresh is a separate change; until it lands, a client signs in
-again.
+Access tokens last **one hour**; refresh tokens **thirty days**. The long life is affordable only
+because using a refresh token replaces it — a long-lived credential that stayed valid after use
+would be the API key again with extra steps.
+
+`POST /api/v1/auth/refresh` — `{refreshToken}` → the same shape, with **both halves new**. The
+presented token is rotated in the same transaction that issues its successor, so there is no
+window in which both work. `401`, no body, for every failure: unknown, expired, revoked, wrong
+kind, or already exchanged. A client's response to all of them is to sign in again, and
+distinguishing "already exchanged" would tell whoever presented a copied token what had been
+noticed about it.
+
+The two kinds do not substitute for each other, in either direction. An access token at
+`/auth/refresh` is refused — otherwise it would buy a fresh thirty-day window every hour and its
+own one-hour life would stop meaning anything. A refresh token presented as a bearer credential
+is refused for the mirror reason: it is long-lived precisely because it only ever reaches one
+endpoint.
+
+**Reuse detection.** A refresh token that has already been exchanged and is presented again means
+two parties hold it — the client that exchanged it, and whoever copied it — and nothing can tell
+which one is asking. So neither is trusted: the whole `family_id` is revoked, including any access
+token still in use, and both are sent back to the passphrase. Signing in again is much the cheaper
+failure against a copied token that would otherwise work for a month.
+
+`POST /api/v1/auth/logout` — `{refreshToken}` → `204`, revoking that family and **only** that
+family. Signing out on one device has no business ending a session on another; with one device the
+two behave identically, so the narrower rule costs nothing now and is already right later. `204`
+comes back for an unrecognised token too, since a `404` would tell somebody probing whether a
+value they hold is real.
 
 ### Health
 

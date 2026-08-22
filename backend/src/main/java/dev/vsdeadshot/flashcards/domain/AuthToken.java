@@ -2,12 +2,15 @@ package dev.vsdeadshot.flashcards.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * One issued bearer token, stored as a digest.
@@ -44,11 +47,29 @@ public class AuthToken {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
+    /**
+     * Stored as its name rather than its ordinal. An ordinal is a position in a list, so
+     * reordering the enum would silently reinterpret every existing row.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, length = 16)
+    private TokenKind kind;
+
+    /** The rotation chain this token belongs to. Revoking one withdraws every token in it. */
+    @Column(name = "family_id", nullable = false)
+    private UUID familyId;
+
+    @Column(name = "rotated_at")
+    private Instant rotatedAt;
+
     protected AuthToken() {
         // for JPA
     }
 
-    public AuthToken(String userId, String tokenHash, Instant createdAt, Instant expiresAt) {
+    public AuthToken(String userId, String tokenHash, TokenKind kind, UUID familyId,
+            Instant createdAt, Instant expiresAt) {
+        this.kind = Objects.requireNonNull(kind, "kind must not be null");
+        this.familyId = Objects.requireNonNull(familyId, "familyId must not be null");
         this.userId = Objects.requireNonNull(userId, "userId must not be null");
         this.tokenHash = Objects.requireNonNull(tokenHash, "tokenHash must not be null");
         if (tokenHash.length() != 64) {
@@ -73,7 +94,27 @@ public class AuthToken {
      * working at the moment it should even if nothing has swept the table.
      */
     public boolean isUsableAt(Instant now) {
-        return revokedAt == null && expiresAt.isAfter(now);
+        return revokedAt == null && rotatedAt == null && expiresAt.isAfter(now);
+    }
+
+    /**
+     * Whether this token was already exchanged for its successor.
+     *
+     * <p>Kept separate from {@link #isUsableAt} because the two answer different questions. A
+     * rotated token is unusable, but a *presentation* of one is evidence that two parties hold
+     * it -- the client that rotated it and whoever copied it -- and that is the whole basis of
+     * reuse detection. Folding it into "unusable" would throw away the distinction between a
+     * token that expired and one that was stolen.
+     */
+    public boolean isRotated() {
+        return rotatedAt != null;
+    }
+
+    /** Marks this token as exchanged. Like revocation, the first time is the one that counts. */
+    public void rotate(Instant when) {
+        if (rotatedAt == null) {
+            rotatedAt = Objects.requireNonNull(when, "when must not be null");
+        }
     }
 
     public void revoke(Instant when) {
@@ -104,6 +145,18 @@ public class AuthToken {
         return revokedAt;
     }
 
+    public TokenKind getKind() {
+        return kind;
+    }
+
+    public UUID getFamilyId() {
+        return familyId;
+    }
+
+    public Instant getRotatedAt() {
+        return rotatedAt;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -120,6 +173,7 @@ public class AuthToken {
     /** Deliberately without the digest: a token's identifier has no business in a log line. */
     @Override
     public String toString() {
-        return "AuthToken{id=" + id + ", expiresAt=" + expiresAt + ", revokedAt=" + revokedAt + "}";
+        return "AuthToken{id=" + id + ", kind=" + kind + ", expiresAt=" + expiresAt
+                + ", revokedAt=" + revokedAt + ", rotatedAt=" + rotatedAt + "}";
     }
 }
