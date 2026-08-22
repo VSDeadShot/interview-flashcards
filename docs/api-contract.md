@@ -33,8 +33,8 @@ card's schedule.
 ## Schema
 
 PostgreSQL 17. All tables carry `user_id` (currently always the single configured
-user). Timestamps are `timestamptz`; `due_date` is a plain `date` — see the
-timezone note under open questions.
+user). Timestamps are `timestamptz`; `due_date` is a plain `date` — see
+[Timezone](#timezone) for which day that date is measured against.
 
 ### `topic`
 | Column | Type | Notes |
@@ -332,16 +332,22 @@ their streak.
 
 ### Timezone
 
-**"Today" is the server's local day, everywhere** — the study queue, `due_date` comparisons,
-`reviewedToday`, and the day boundaries the streak walks. This is a **documented simplification
-for the single-user, local-first case**, not an oversight: one user in one timezone with the
-server on their own machine sees exactly what they expect, and an explicit user timezone would be
-a column, a setting screen and a conversion at every boundary for no benefit today.
+**"Today" is a configured day, everywhere** — the study queue, `due_date` comparisons,
+`reviewedToday`, the day boundaries the streak walks, and the generation allowance's reset. All
+five derive from the single injected `Clock`, and that clock's zone comes from
+`flashcards.timezone` (`FLASHCARDS_TIMEZONE`), defaulting to `Asia/Kolkata`.
 
-It is the wrong answer the moment there is a client in another timezone, which would see days
-roll over at the server's midnight rather than its own — cards appearing due at 05:30, a streak
-breaking in the afternoon. Revisit at that point, not before: the change is a user timezone stored
-alongside the account, applied where `LocalDate.now(clock)` is called today.
+It is configured rather than taken from the host because the host stops being the user's machine
+as soon as this is deployed. A container runs UTC, and `Clock.systemDefaultZone()` would move all
+five of those boundaries by the user's offset — quietly, since nothing fails. A card would leave
+the queue at 05:30 local, a streak would break in the afternoon, and the day's generation
+allowance would come back mid-morning. A schedule that is silently off by a day is the kind of
+corruption nothing reports.
+
+One configured zone, not a per-user column, is still the **documented simplification for the
+single-user case**. It is the wrong answer the moment there is a second user in a second zone,
+and the change at that point is a zone stored alongside the account, applied where the `Clock` is
+injected today.
 
 ### Payloads
 
