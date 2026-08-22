@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class ClockConfigurationTest {
 
     private static FlashcardsProperties propertiesFor(String zone) {
-        return new FlashcardsProperties("key", "user", ZoneId.of(zone));
+        return new FlashcardsProperties("key", "user", ZoneId.of(zone), null);
     }
 
     /**

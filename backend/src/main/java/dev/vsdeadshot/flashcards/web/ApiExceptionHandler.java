@@ -1,10 +1,12 @@
 package dev.vsdeadshot.flashcards.web;
 
+import dev.vsdeadshot.flashcards.service.AuthenticationFailedException;
 import dev.vsdeadshot.flashcards.service.ConcurrentRequestException;
 import dev.vsdeadshot.flashcards.service.DuplicateTopicException;
 import dev.vsdeadshot.flashcards.service.GenerationLimitExceededException;
 import dev.vsdeadshot.flashcards.service.IdempotencyKeyReuseException;
 import dev.vsdeadshot.flashcards.service.NotFoundException;
+import dev.vsdeadshot.flashcards.service.SignInNotConfiguredException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import dev.vsdeadshot.flashcards.ai.GenerationRefusedException;
@@ -130,6 +132,31 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
                 .body(problem);
+    }
+
+    /**
+     * A bodyless {@code 401}, matching what {@code ApiKeyFilter} and {@code AuthTokenFilter}
+     * return. Those two answer from inside a filter, where no handler runs and there is nothing
+     * to serialise; this one could return a problem body and deliberately does not, so a client
+     * has one shape to recognise for "you are not authenticated" rather than two.
+     *
+     * <p>There is also nothing worth putting in it. Naming the failure would distinguish a wrong
+     * passphrase from a well-formed request that was refused for some other reason, which is
+     * precisely the distinction somebody guessing would like drawn for them.
+     */
+    @ExceptionHandler(AuthenticationFailedException.class)
+    public ResponseEntity<Void> handleAuthenticationFailure(AuthenticationFailedException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+
+    /**
+     * {@code 503} rather than {@code 401}, because the caller's passphrase was never consulted.
+     * Telling somebody their credentials were rejected when the server has none configured
+     * sends them to look for a fault that is on this side.
+     */
+    @ExceptionHandler(SignInNotConfiguredException.class)
+    public ProblemDetail handleSignInNotConfigured(SignInNotConfiguredException e) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Sign-in unavailable", e.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

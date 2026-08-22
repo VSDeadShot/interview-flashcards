@@ -39,8 +39,6 @@ public class ApiKeyFilter extends OncePerRequestFilter {
      */
     public static final String USER_ID_ATTRIBUTE = "userId";
 
-    private static final String PROTECTED_PREFIX = "/api/";
-
     private final byte[] expectedKey;
     private final String userId;
 
@@ -49,9 +47,20 @@ public class ApiKeyFilter extends OncePerRequestFilter {
         this.userId = properties.userId();
     }
 
+    /**
+     * Skips a public route, and skips a request {@link AuthTokenFilter} has already
+     * authenticated.
+     *
+     * <p>The second is what lets two credentials coexist without either knowing about the
+     * other's rules: the attribute being set means somebody upstream established who is calling,
+     * and re-checking a key that was never presented would refuse a perfectly good token. It is
+     * a property of the request rather than a reference to that filter, so removing either
+     * filter leaves the other correct.
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith(PROTECTED_PREFIX);
+        return PublicRoutes.isPublic(request.getRequestURI())
+                || request.getAttribute(USER_ID_ATTRIBUTE) != null;
     }
 
     @Override

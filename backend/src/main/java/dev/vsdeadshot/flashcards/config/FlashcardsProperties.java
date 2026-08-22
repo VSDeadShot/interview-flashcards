@@ -21,9 +21,25 @@ import org.springframework.validation.annotation.Validated;
  *                 property, instead of at the first request that asks what day it is. See
  *                 {@link ClockConfiguration#clock} for why this is configured rather than
  *                 taken from the host.
+ * @param passphraseHash the bcrypt hash of the passphrase {@code POST /auth/login} checks, or
+ *                 null. <strong>Optional on purpose, for now.</strong> While {@code apiKey}
+ *                 still authenticates every route, signing in is a capability rather than a
+ *                 precondition — the same posture {@code GeminiProperties} takes, and for the
+ *                 same reason: requiring it would refuse to start an instance that works
+ *                 perfectly well without it, and would make every test context supply one. It
+ *                 becomes required in the change that removes the API key, when it is the only
+ *                 credential left. The hash is stored, never the passphrase.
  */
 @Validated
 @ConfigurationProperties(prefix = "flashcards")
 public record FlashcardsProperties(
-        @NotBlank String apiKey, @NotBlank String userId, @NotNull ZoneId timezone) {
+        @NotBlank String apiKey,
+        @NotBlank String userId,
+        @NotNull ZoneId timezone,
+        String passphraseHash) {
+
+    /** Whether a passphrase has been configured at all, and so whether signing in can work. */
+    public boolean signInConfigured() {
+        return passphraseHash != null && !passphraseHash.isBlank();
+    }
 }
