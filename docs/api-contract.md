@@ -202,7 +202,12 @@ Two credentials are accepted, deliberately, while the client migrates from one t
   deciding otherwise would mean checking the passphrase to find out, which is the expensive work
   the limit exists to avoid doing. Only failures are counted, so using your own account never
   locks you out of it.
-- `503` if no passphrase is configured on the server. Not `401`: the caller's credentials were
+- `503` if no passphrase is configured on the server — **or if the configured value is not a
+  usable bcrypt hash**. A value mangled on its way into an environment variable (a shell or a
+  dotenv parser eats the `$` sequences in `$2a$12$…`) is still non-blank, and treating it as
+  configured meant answering `401` to the correct passphrase: a fault on the server, reported as
+  the caller's, and indistinguishable from a wrong guess. A malformed hash now reads as absent,
+  logs a warning at startup, and consumes none of the sign-in allowance. Not `401`: the caller's credentials were
   never consulted, and saying they were sends them hunting a fault on their own side. Sign-in is
   a capability while the API key still works, the same way generation is a capability without a
   Gemini key.

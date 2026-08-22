@@ -28,7 +28,9 @@ import org.springframework.validation.annotation.Validated;
  *                 same reason: requiring it would refuse to start an instance that works
  *                 perfectly well without it, and would make every test context supply one. It
  *                 becomes required in the change that removes the API key, when it is the only
- *                 credential left. The hash is stored, never the passphrase.
+ *                 credential left. The hash is stored, never the passphrase. A value that is
+ *                 present but not a well-formed bcrypt hash counts as absent — see
+ *                 {@code PassphraseAuthenticator}.
  */
 @Validated
 @ConfigurationProperties(prefix = "flashcards")
@@ -38,8 +40,17 @@ public record FlashcardsProperties(
         @NotNull ZoneId timezone,
         String passphraseHash) {
 
-    /** Whether a passphrase has been configured at all, and so whether signing in can work. */
-    public boolean signInConfigured() {
+    /**
+     * Whether a value was supplied at all — not whether it is usable.
+     *
+     * <p>The distinction matters and was learned the hard way. A hash mangled on its way into
+     * configuration is still non-blank, so a check that stopped here would report sign-in as
+     * working and then refuse every correct passphrase with {@code 401} — a server
+     * misconfiguration blamed on the caller, and indistinguishable from a wrong passphrase from
+     * the outside. Whether the value is a usable bcrypt hash is
+     * {@code PassphraseAuthenticator}'s to say, since that is the class that owns bcrypt.
+     */
+    public boolean hasPassphraseHash() {
         return passphraseHash != null && !passphraseHash.isBlank();
     }
 }

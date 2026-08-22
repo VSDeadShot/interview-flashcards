@@ -1,6 +1,9 @@
 package dev.vsdeadshot.flashcards.service;
 
 import dev.vsdeadshot.flashcards.config.FlashcardsProperties;
+import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,6 +23,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class PassphraseAuthenticator {
 
+    private static final Logger log = LoggerFactory.getLogger(PassphraseAuthenticator.class);
+
+    /**
+     * What a bcrypt hash looks like, mirroring the pattern {@code BCryptPasswordEncoder} uses
+     * internally so the two cannot disagree about what it will accept.
+     *
+     * <p>This exists because of a real failure. A hash whose {@code $} sequences were eaten on
+     * the way into an environment variable -- which is what a shell or a dotenv parser does to
+     * {@code $2a$12$...} -- arrives here as a non-blank string that bcrypt cannot use. Without
+     * this check the application reports sign-in as available and then answers {@code 401} to
+     * the correct passphrase: a fault on this side, described to the caller as a fault on
+     * theirs, and indistinguishable from a genuinely wrong guess.
+     */
+    private static final Pattern BCRYPT =
+            Pattern.compile("^\\$2[ayb]?\\$\\d{2}\\$[./0-9A-Za-z]{53}$");
+
     /**
      * Built with the default strength, which is not the strength anything is hashed at here.
      * A bcrypt hash carries its own cost factor, so verification uses whatever the stored hash
@@ -32,10 +51,33 @@ public class PassphraseAuthenticator {
 
     public PassphraseAuthenticator(FlashcardsProperties properties) {
         this.properties = properties;
+
+        if (properties.hasPassphraseHash() && !configured()) {
+            // At startup rather than only at the first attempt. BCryptPasswordEncoder does warn
+            // when matches() is handed something unusable, but that is one line per request among
+            // ordinary traffic, and by then the caller has already been told their passphrase was
+            // wrong. Said once, at boot, it names the mistake while somebody is still looking.
+            //
+            // The value itself is never logged. It is not a secret in the sense the passphrase
+            // is, but printing a credential-shaped string into a log is not a habit worth having.
+            log.warn("FLASHCARDS_PASSPHRASE_HASH is set but is not a valid bcrypt hash "
+                    + "(expected 60 characters beginning $2a$, $2b$ or $2y$). Sign-in is "
+                    + "disabled and /auth/login will answer 503. A common cause is the $ "
+                    + "sequences being expanded by a shell or dotenv parser on the way in.");
+        }
     }
 
+    /**
+     * Whether signing in can actually work — a hash is present <em>and</em> bcrypt can use it.
+     *
+     * <p>A malformed hash deliberately reads as unconfigured rather than failing startup. The
+     * API key still authenticates every route, so refusing to boot over an optional capability
+     * would take a working instance down; this is the same posture generation takes without a
+     * Gemini key. What it must not do is masquerade as configured, which is the bug this fixes.
+     */
     public boolean configured() {
-        return properties.signInConfigured();
+        return properties.hasPassphraseHash()
+                && BCRYPT.matcher(properties.passphraseHash()).matches();
     }
 
     /**
