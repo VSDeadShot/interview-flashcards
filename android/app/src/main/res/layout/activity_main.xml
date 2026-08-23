@@ -3,9 +3,18 @@
     No background here. The window carries it, so the toolbar, the container and the bar all sit
     on one ground and a fragment that draws nothing shows that ground rather than black.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    A merge, not a FrameLayout. Two children are needed rather than one — the column that is the
+    screen, and the lock overlay stacked on top of it, which has to cover the toolbar and the
+    bottom bar and so cannot live inside the column. The activity's own content view is already
+    a FrameLayout, so wrapping these in another one would add a level that stacks them exactly
+    the way the existing one already would; merge puts both straight into it.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:tools="http://schemas.android.com/tools">
+
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -83,3 +92,67 @@
         app:menu="@menu/bottom_nav" />
 
 </LinearLayout>
+
+    <!--
+        The gate. Opaque and full-bleed, so nothing behind it is legible while it is up — a
+        translucent scrim would leave the question on the study screen readable, which is most of
+        what there is to read.
+
+        clickable and focusable are load-bearing rather than tidy: without them touches fall
+        through to the toolbar and the bottom bar underneath, and the lock becomes a picture of a
+        lock. It is also the reason this is a sibling of the whole column rather than a view
+        inside it.
+
+        Not a navigation destination. A destination can be dismissed with the back button, which
+        is the one thing a gate must not do.
+    -->
+    <LinearLayout
+        android:id="@+id/lock_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="40dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/lock_title"
+            android:textAppearance="@style/TextAppearance.Flashcards.ScreenTitle" />
+
+        <!--
+            Says why the app is not showing, and it is set from code rather than fixed here: a
+            first prompt and a refused one are different situations, and only the second needs to
+            explain itself.
+        -->
+        <TextView
+            android:id="@+id/lock_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:text="@string/lock_subtitle"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!--
+            The way back after a cancelled or failed prompt. Without it the overlay is a dead end
+            whenever the system dialog closes for any reason other than success, and the only way
+            out of the app would be to leave it.
+        -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/lock_retry"
+            style="@style/Widget.Flashcards.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/lock_unlock" />
+
+    </LinearLayout>
+
+</merge>

@@ -1,6 +1,8 @@
 package dev.vsdeadshot.flashcards.ui;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -12,6 +14,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.ActionMenuView;
+import androidx.biometric.BiometricPrompt;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
@@ -19,9 +22,14 @@ import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import dev.vsdeadshot.flashcards.R;
+import dev.vsdeadshot.flashcards.data.auth.LockSettings;
 import dev.vsdeadshot.flashcards.data.auth.TokenStore.SignedOutReason;
 import dev.vsdeadshot.flashcards.data.sync.SyncScheduler;
 import dev.vsdeadshot.flashcards.ui.auth.AuthViewModel;
+import dev.vsdeadshot.flashcards.ui.lock.AppLock;
+import dev.vsdeadshot.flashcards.ui.lock.UnlockPrompt;
+import java.time.Clock;
+import java.util.concurrent.Executor;
 
 /**
  * The one activity: a toolbar, a fragment container, and a bottom bar.
@@ -41,6 +49,18 @@ public final class MainActivity extends AppCompatActivity {
      * the token store, so the observer is the one place the two meet.
      */
     private boolean signedIn;
+
+    private LockSettings lock;
+
+    /**
+     * The system dialog is asynchronous and this activity can be stopped while it is up, so the
+     * prompt is asked for once and only while the activity is started. Guarded because onStart
+     * runs again after a configuration change, and a second authenticate() call while one is
+     * showing stacks two dialogs.
+     */
+    private boolean prompting;
+
+    private final Clock clock = Clock.systemDefaultZone();
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -65,6 +85,70 @@ public final class MainActivity extends AppCompatActivity {
 
         springLoad(bottomNav);
         watchSession();
+
+        lock = new LockSettings(this);
+        View retry = findViewById(R.id.lock_retry);
+        Motion.press(retry);
+        retry.setOnClickListener(tapped -> promptToUnlock());
+    }
+
+    /**
+     * The gate is applied here rather than in onCreate, because onCreate runs once and the case
+     * this exists for is coming back to an app that was left open.
+     */
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (AppLock.required(lock.enabled(), clock)) {
+            showLock(R.string.lock_subtitle);
+            promptToUnlock();
+        } else {
+            findViewById(R.id.lock_overlay).setVisibility(View.GONE);
+        }
+    }
+
+    private void showLock(int message) {
+        findViewById(R.id.lock_overlay).setVisibility(View.VISIBLE);
+        ((TextView) findViewById(R.id.lock_message)).setText(message);
+    }
+
+    /**
+     * Shows the platform's dialog and acts on the one outcome that matters.
+     *
+     * <p>Everything that is not a success leaves the overlay up. That includes the person
+     * dismissing the dialog, which is deliberately not treated as a reason to let them in — but
+     * it is also not called a failure, since choosing to close a dialog is not one.
+     */
+    private void promptToUnlock() {
+        if (prompting) {
+            return;
+        }
+        prompting = true;
+        // The callback executor is the main thread's, so the views below are touched on the
+        // thread that owns them.
+        Executor main = new Handler(Looper.getMainLooper())::post;
+        UnlockPrompt.build(this, main, new BiometricPrompt.AuthenticationCallback() {
+
+            @Override
+            public void onAuthenticationSucceeded(
+                    @NonNull BiometricPrompt.AuthenticationResult result) {
+                prompting = false;
+                AppLock.unlocked(clock);
+                findViewById(R.id.lock_overlay).setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onAuthenticationError(int code, @NonNull CharSequence message) {
+                prompting = false;
+                showLock(R.string.lock_retry_message);
+            }
+
+            @Override
+            public void onAuthenticationFailed() {
+                // A finger that was not recognised. The dialog stays up and handles its own
+                // retries, so there is nothing for this to do — overriding it only to say so.
+            }
+        }).authenticate(UnlockPrompt.info(this));
     }
 
     /**
@@ -100,6 +184,28 @@ public final class MainActivity extends AppCompatActivity {
         // reasons to hide it are combined in one place.
         navController.addOnDestinationChangedListener(
                 (controller, destination, arguments) -> drawBanner());
+    }
+
+    /**
+     * Turns the gate on or off, refusing to turn it on where it could not be satisfied.
+     *
+     * <p>The check before enabling is the important half. A device with nothing enrolled would
+     * otherwise accept the setting, show the gate at the next start, and have no way to dismiss
+     * it — the setting itself being behind the gate.
+     */
+    private void toggleLock(boolean enable) {
+        if (enable && !UnlockPrompt.available(this)) {
+            Toast.makeText(this, R.string.lock_unavailable, Toast.LENGTH_LONG).show();
+            return;
+        }
+        lock.setEnabled(enable);
+        if (enable) {
+            // Otherwise the grace period from some earlier unlock would leave the app open, and
+            // switching a lock on would appear to do nothing at all.
+            AppLock.relock();
+            Toast.makeText(this, R.string.lock_enabled_note, Toast.LENGTH_LONG).show();
+        }
+        invalidateOptionsMenu();
     }
 
     /**
@@ -170,6 +276,11 @@ public final class MainActivity extends AppCompatActivity {
             signOut.setVisible(signedIn);
         }
 
+        MenuItem requireUnlock = menu.findItem(R.id.action_lock);
+        if (requireUnlock != null && lock != null) {
+            requireUnlock.setChecked(lock.enabled());
+        }
+
         // Posted for the same reason the tabs are: the item views do not exist until the menu
         // has been laid out, and preparation is what triggers that rather than the end of it.
         findViewById(R.id.toolbar).post(this::springLoadToolbar);
@@ -224,6 +335,10 @@ public final class MainActivity extends AppCompatActivity {
             // stays, and everything queued is sent when somebody signs in again — so a dialog
             // would be asking about a decision that costs nothing to undo.
             auth.signOut();
+            return true;
+        }
+        if (item.getItemId() == R.id.action_lock) {
+            toggleLock(!item.isChecked());
             return true;
         }
         if (item.getItemId() == R.id.action_sync_now) {

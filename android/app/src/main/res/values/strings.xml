@@ -47,6 +47,25 @@
     <string name="auth_banner_expired">Session ended — sync is paused. Tap to sign in.</string>
     <string name="auth_banner_never">Not signed in — sync is paused. Tap to sign in.</string>
 
+    <!-- The unlock gate. Off unless somebody turns it on, which is why the menu item says what
+         it will do rather than naming a feature. -->
+    <string name="lock_require">Require unlock</string>
+    <string name="lock_title">Flashcards is locked</string>
+    <string name="lock_subtitle">Unlock to see your cards.</string>
+    <string name="lock_unlock">Unlock</string>
+    <!-- After a prompt that closed without succeeding. Deliberately not "authentication failed":
+         the commonest way to get here is dismissing the dialog on purpose, which is not a
+         failure and should not be described as one. -->
+    <string name="lock_retry_message">Still locked. Unlock to see your cards.</string>
+    <!-- Shown when the setting is switched on for the first time on a device that cannot satisfy
+         it. Naming both ways out matters: a fingerprint is the obvious one, but a screen lock is
+         the one that always works, and somebody with neither would otherwise be told only that
+         it is unavailable. -->
+    <string name="lock_unavailable">This device has no fingerprint, face unlock or screen lock set up, so there is nothing to unlock with.</string>
+    <!-- Said once, when it is turned on, because the limit is easy to overestimate and nothing
+         else in the app will ever mention it. -->
+    <string name="lock_enabled_note">The app will ask before showing your cards. This does not encrypt anything on the device.</string>
+
     <!-- Bare numbers with labels beneath them rather than "12 cards". Three figures side by
          side are read by comparing them, and a unit repeated under each one is three words in the
          way of that. -->

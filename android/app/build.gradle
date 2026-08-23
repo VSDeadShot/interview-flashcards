@@ -142,6 +142,10 @@ dependencies {
     // have to guess a duration for a gesture whose length is not known when it starts.
     implementation 'androidx.dynamicanimation:dynamicanimation:1.1.0'
 
+    // The unlock gate. Wraps the platform's fingerprint/face/PIN prompt behind one API that
+    // works from 26 up, which the framework's own BiometricPrompt does not.
+    implementation 'androidx.biometric:biometric:1.1.0'
+
     testImplementation 'junit:junit:4.13.2'
     // Runs the Android framework on the JVM, so the database tests need no emulator — the
     // same reason the backend runs Postgres in-process rather than asking for Docker.

@@ -307,6 +307,35 @@ offline-first promise for the one thing the whole cache design exists to avoid. 
 sits outside the bottom bar's menu, so `AppBarConfiguration` gives it an up arrow, and it leaves
 by `popBackStack` rather than navigating on to a screen it does not own.
 
+**The unlock gate is a gate on the interface and nothing more, which is worth stating because it
+is easy to overestimate.** It does not encrypt the tokens and it is **not** bound to a Keystore
+key — decided against deliberately, since an auth-bound key cannot be used by the background sync,
+which by definition runs when nobody is present to authenticate. So it stops somebody who has
+picked up an unlocked phone from reading the deck or acting through the app; it does nothing
+against anyone able to read the app's private storage, and the device's own lock screen remains
+the control that matters for a lost phone. `AppLock`'s javadoc says the same thing at the point
+somebody would be reading it.
+
+**It is off until asked for.** A security control that arrives switched on is one nobody chose,
+on an app holding revision notes, and the first thing it could do is fail on a device with
+nothing enrolled. `UnlockPrompt.available` is checked *before* the setting is allowed on for
+exactly that reason: accepting it on a device that cannot satisfy it would show the gate at the
+next start with no way past — and the setting to turn it off again is behind the gate.
+
+**The decision to gate is separated from the dialog on purpose.** `BiometricPrompt` cannot be
+exercised off a device, so `AppLock` holds the rule as a plain function of `(enabled, Clock)` and
+`AppLockTest` covers it in full — the same reason the backend's scheduler takes a clock rather
+than reading one. The unlock timestamp is **in memory only**: persisted, it would survive the
+process dying and make force-stopping the app a way through the gate rather than a way to meet
+it. The one-minute grace is a compromise with a shape worth naming — zero re-prompts every time
+somebody switches away and comes back, which is what teaches people to turn a lock off.
+
+**`activity_main.xml` is a `<merge>`, and the overlay is a sibling of the whole column.** It has
+to cover the toolbar and the bottom bar, which a view inside the column could not do, and its
+`clickable`/`focusable` attributes are load-bearing rather than tidy: without them touches fall
+through and the lock becomes a picture of a lock. It is not a navigation destination, because a
+destination can be dismissed with the back button.
+
 **`AuthViewModel` is the only view model that does not watch Room, and it has a reason the others
 do not.** Whether there is a session belongs to the device rather than to the deck, so it is not
 in the database and should not be — a table would put it inside the thing the sync replaces. It
@@ -339,6 +368,13 @@ otherwise be reported as the class under test failing. The claim it rests on is 
 setting only changes what happens where a stub would have thrown, and nothing else in the suite
 reaches one. It is not a licence to test framework code this way; anything that actually needs
 Android still runs under Robolectric, which is every test touching Room or a fragment.
+
+**Robolectric answers `BIOMETRIC_SUCCESS` to every `canAuthenticate` call** — weak, strong,
+credential and the combination alike, measured with a probe rather than assumed. It does not model
+a device without a sensor or an enrolment, so the one case worth testing there is unreachable, and
+`UnlockPrompt.forceAvailable` exists as the seam. What cannot be tested at all off a device is a
+successful unlock; that was verified on the emulator instead, with a device PIN standing in for a
+fingerprint.
 
 The remote and mapper tests deliberately **do not** use Robolectric. Nothing in them touches the Android framework, so keeping it out makes them faster and keeps that API-35 pin confined to the database tests. `FlashcardsApiTest` runs a real `MockWebServer` on a loopback port rather than stubbing the interface, so it exercises OkHttp, Retrofit and Moshi together.
 

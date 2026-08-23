@@ -27,4 +27,16 @@
         android:title="@string/auth_sign_out"
         app:showAsAction="never" />
 
+    <!--
+        A checkable item rather than a settings screen, because it is the only setting the app
+        has. checkableBehavior on a group is what makes the tick render; a bare android:checkable
+        on a lone item is honoured inconsistently across menu presentations.
+    -->
+    <group android:checkableBehavior="all">
+        <item
+            android:id="@+id/action_lock"
+            android:title="@string/lock_require"
+            app:showAsAction="never" />
+    </group>
+
 </menu>
