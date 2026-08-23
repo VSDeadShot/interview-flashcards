@@ -61,7 +61,7 @@ flashcards.baseUrl=http://10.0.2.2:8080/api/v1/
 
 ## Backend architecture
 
-**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17, JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
+**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17 locally and in tests — **18.4 on Render**, see [The version gap](#the-version-gap) — JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
 
 **Spring Boot 4 renamed the starters.** It is `spring-boot-starter-webmvc`, not `-web`, and the test starter is split per module — `spring-boot-starter-data-jpa-test`, `-webmvc-test`, `-flyway-test`, `-validation-test` — rather than one `spring-boot-starter-test`. Copying dependency snippets from Boot 3 documentation or older answers will not resolve. Tests use plain JUnit `Assertions`; AssertJ is not on the classpath.
 
@@ -135,7 +135,15 @@ Cards are ordered `dueDate, id`; the `id` tiebreak keeps same-day cards in a sta
 
 **There is no Docker on this machine**, so Testcontainers is not an option. `support/EmbeddedPostgresTest` starts a real PostgreSQL 17 in-process via `io.zonky.test:embedded-postgres` and overrides the datasource with `@DynamicPropertySource`. Extend it for anything needing a database.
 
-This matters beyond convenience: an in-memory stand-in like H2 would quietly accept things real Postgres rejects, and this schema leans on `timestamptz`, identity columns, and a partial index. The embedded binaries are Postgres 17, matching the development server, so there is no dialect gap between test and production.
+This matters beyond convenience: an in-memory stand-in like H2 would quietly accept things real Postgres rejects, and this schema leans on `timestamptz`, identity columns, and a partial index. The embedded binaries are Postgres 17, matching the development server.
+
+#### The version gap
+
+**They no longer match production.** Render's managed instance is **PostgreSQL 18.4**; local, the embedded test binaries, and every version claim in `docs/api-contract.md` are 17. This was found on 2026-08-23 while seeding the deployed database, not by anything failing.
+
+Nothing is known to be broken by it, and the migrations applied cleanly from nothing on 18.4 — which is the part that would have failed loudest. But the sentence this replaced used to say there was *no* dialect gap between test and production, and that is now simply untrue: the suite proves the schema against a different major version than the one serving requests. `V1__init.sql`'s `check` constraints, the partial `idx_card_due`, and `existsCardDueOn`'s native `order by … limit 1` subquery are the places where a difference would actually show, and none of them is exercised against 18 by anything.
+
+The honest options are to move the Zonky binaries to 18 and match, or to pin Render to 17 and match the other way. Deliberately neither yet — this is recorded so the choice is made on purpose rather than discovered during an incident.
 
 Consequences worth knowing:
 
