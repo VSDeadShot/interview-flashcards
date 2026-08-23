@@ -262,4 +262,24 @@
         <item name="android:textAllCaps">false</item>
     </style>
 
+    <!--
+        The strip that says syncing has stopped. Tinted rather than drawn in the error colour:
+        what it reports is a standing condition somebody can fix in two taps, not a fault, and a
+        red bar across the top of every screen for a month would teach them to stop reading it.
+
+        Full-bleed, with no corner radius and no margin, so it reads as part of the chrome
+        between the toolbar and the content rather than as a card that has floated to the top.
+    -->
+    <style name="Widget.Flashcards.Banner" parent="">
+        <item name="android:background">?attr/colorSecondaryContainer</item>
+        <item name="android:textColor">?attr/colorOnSecondaryContainer</item>
+        <item name="android:textAppearance">?attr/textAppearanceLabelLarge</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingHorizontal">20dp</item>
+        <item name="android:paddingVertical">12dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:foreground">?attr/selectableItemBackground</item>
+    </style>
+
 </resources>

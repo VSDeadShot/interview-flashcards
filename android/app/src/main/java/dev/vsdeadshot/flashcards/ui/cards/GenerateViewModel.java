@@ -86,10 +86,12 @@ public final class GenerateViewModel extends AndroidViewModel {
         state.setValue(new GenerateState(true, null, null));
         io.execute(() -> {
             try {
-                // The repository is built here rather than held as a field: constructing it
-                // constructs the API client, and ApiKeyInterceptor refuses a missing key at
-                // construction. A view model that did it eagerly would take the whole screen
-                // down on a build with no key rather than the one action that needs one.
+                // The repository is built here rather than held as a field. It began as a
+                // workaround — constructing it constructed an API client, and the old
+                // ApiKeyInterceptor refused a missing key at construction, so a view model that
+                // did it eagerly would take the whole screen down on a build with no key. That
+                // constraint went with the key. It stays because building a client per action
+                // costs nothing here and keeps this screen's one networked thing self-contained.
                 int stored = Graph.generator(getApplication()).generate(topicId, focus, count);
                 state.postValue(new GenerateState(false, stored, null));
             } catch (ApiException e) {

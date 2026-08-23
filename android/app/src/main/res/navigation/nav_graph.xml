@@ -95,4 +95,19 @@
 
     </fragment>
 
+    <!--
+        Reached from the toolbar and from the banner, from wherever somebody happens to be, so it
+        has no incoming action of its own — NavController.navigate(int) finds it in the graph.
+
+        Not in the bottom bar's menu, so AppBarConfiguration treats it as not top level and draws
+        an up arrow. That is the right shape for it: signing in is somewhere a person goes and
+        comes back from, and it is deliberately not a gate in front of the three tabs. Every
+        screen reads the cache, so the app works in full without ever visiting this one.
+    -->
+    <fragment
+        android:id="@+id/signInFragment"
+        android:name="dev.vsdeadshot.flashcards.ui.auth.SignInFragment"
+        android:label="@string/nav_sign_in"
+        tools:layout="@layout/fragment_sign_in" />
+
 </navigation>

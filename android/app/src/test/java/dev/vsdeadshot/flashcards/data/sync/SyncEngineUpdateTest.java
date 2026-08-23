@@ -9,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 import android.app.Application;
 import androidx.room.Room;
 import dev.vsdeadshot.flashcards.data.CardRepository;
+import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.local.PendingReviewEntity;
@@ -46,7 +47,7 @@ import org.robolectric.annotation.Config;
 @Config(application = Application.class)
 public class SyncEngineUpdateTest {
 
-    private static final String KEY = "test-key";
+    private static final String TOKEN = "test-access-token";
     private static final LocalDate TODAY = LocalDate.of(2026, 3, 17);
 
     private MockWebServer server;
@@ -62,7 +63,8 @@ public class SyncEngineUpdateTest {
                         RuntimeEnvironment.getApplication(), FlashcardsDatabase.class)
                 .allowMainThreadQueries()
                 .build();
-        engine = new SyncEngine(ApiClient.create(server.url("/api/v1/").toString(), KEY), db);
+        engine = new SyncEngine(ApiClient.create(server.url("/api/v1/").toString(),
+                FakeTokenStore.accessOnly(TOKEN)), db);
         cards = new CardRepository(
                 db, Clock.fixed(TODAY.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC));
         cacheTopic();

@@ -2,11 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
-// The API key and the server's address are per-machine, and local.properties is gitignored.
-// Reading them here is what keeps them out of the repo while still letting the app be built
-// with one command. Missing values fall back to a blank key rather than failing the build,
-// so a fresh clone can still run the scheduler and database tests, which need neither; the
-// blank is refused loudly by ApiKeyInterceptor the moment anything tries to make a request.
+// The server's address is per-machine, and local.properties is gitignored. Reading it here is
+// what lets a fresh clone point the app at its own backend without editing a tracked file.
+//
+// There is no longer a key to read. The credential is a bearer token obtained by signing in
+// with a passphrase, held in the app's own storage and never built into the APK — which is the
+// point of the change that removed it: a static key in a shipped binary is extractable by
+// anyone holding the binary, and rotating it meant shipping a new build.
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -26,14 +28,13 @@ android {
         versionCode 1
         versionName '0.1'
 
-        buildConfigField 'String', 'API_KEY',
-                "\"${localProperties.getProperty('flashcards.apiKey', '')}\""
-        // 10.0.2.2 is the emulator's alias for the host machine's loopback, so the default
-        // reaches a backend started with bootRun and nothing has to be configured to try the
-        // app. A real device needs a LAN address here and the same host added to the debug
-        // network security config.
+        // The deployed instance, over TLS, which is what the client's reason to exist now is.
+        // Working against a local backend means setting flashcards.baseUrl to
+        // http://10.0.2.2:8080/api/v1/ — the emulator's alias for the host's loopback, already
+        // permitted by the debug network security config — since running one is a deliberate
+        // act either way and the default should be the case that needs no setup at all.
         buildConfigField 'String', 'BASE_URL',
-                "\"${localProperties.getProperty('flashcards.baseUrl', 'http://10.0.2.2:8080/api/v1/')}\""
+                "\"${localProperties.getProperty('flashcards.baseUrl', 'https://interview-flashcards.onrender.com/api/v1/')}\""
 
         javaCompileOptions {
             annotationProcessorOptions {
@@ -46,8 +47,8 @@ android {
     }
 
     buildFeatures {
-        // Off by default since AGP 8. The generated BuildConfig is how the key and base URL
-        // reach the code without being written down anywhere the repo can see.
+        // Off by default since AGP 8. The generated BuildConfig is how the base URL reaches the
+        // code without a machine-specific address being written down in a tracked file.
         buildConfig true
     }
 
@@ -60,6 +61,17 @@ android {
         unitTests {
             // Robolectric needs the merged resources and manifest to build an Application.
             includeAndroidResources = true
+
+            // Unmocked android.* methods return a default instead of throwing. Needed because
+            // the remote and auth tests deliberately run without Robolectric — nothing in them
+            // touches the framework except android.util.Log, which the data layer logs through
+            // and which would otherwise throw and be reported as the class under test failing.
+            //
+            // The narrow claim this rests on: the setting only changes what happens where a stub
+            // would have thrown, and nothing else in the suite reaches one. It is not a licence
+            // to test framework code this way — anything that actually needs Android still runs
+            // under Robolectric, which is every test that touches Room or a fragment.
+            returnDefaultValues = true
         }
     }
 

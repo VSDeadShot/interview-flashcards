@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.remote.ApiException.Disposition;
 import dev.vsdeadshot.flashcards.data.remote.dto.GenerateRequestDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.GenerateResponseDto;
@@ -25,7 +26,7 @@ import org.junit.Test;
  */
 public class GenerateApiTest {
 
-    private static final String KEY = "test-key";
+    private static final String TOKEN = "test-access-token";
 
     private MockWebServer server;
     private FlashcardsApi api;
@@ -34,7 +35,8 @@ public class GenerateApiTest {
     public void startServer() throws IOException {
         server = new MockWebServer();
         server.start();
-        api = ApiClient.create(server.url("/api/v1/").toString(), KEY);
+        api = ApiClient.create(server.url("/api/v1/").toString(),
+                FakeTokenStore.accessOnly(TOKEN));
     }
 
     @After

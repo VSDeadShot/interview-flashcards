@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Application;
 import androidx.room.Room;
+import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.local.PendingReviewEntity;
@@ -49,7 +50,7 @@ import org.robolectric.annotation.Config;
 @Config(application = Application.class)
 public class SyncEngineTest {
 
-    private static final String KEY = "test-key";
+    private static final String TOKEN = "test-access-token";
 
     /** What the local scheduler predicted. Nothing the server ever sends below matches it. */
     private static final int PREDICTED_INTERVAL = 99;
@@ -66,7 +67,8 @@ public class SyncEngineTest {
                         RuntimeEnvironment.getApplication(), FlashcardsDatabase.class)
                 .allowMainThreadQueries()
                 .build();
-        engine = new SyncEngine(ApiClient.create(server.url("/api/v1/").toString(), KEY), db);
+        engine = new SyncEngine(ApiClient.create(server.url("/api/v1/").toString(),
+                FakeTokenStore.accessOnly(TOKEN)), db);
     }
 
     @After

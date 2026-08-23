@@ -12,6 +12,7 @@ import androidx.work.WorkerFactory;
 import androidx.work.WorkerParameters;
 import androidx.work.testing.SynchronousExecutor;
 import androidx.work.testing.TestWorkerBuilder;
+import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.local.PendingReviewEntity;
 import dev.vsdeadshot.flashcards.data.remote.ApiClient;
@@ -42,7 +43,7 @@ import org.robolectric.annotation.Config;
 @Config(application = Application.class)
 public class SyncWorkerTest {
 
-    private static final String KEY = "test-key";
+    private static final String TOKEN = "test-access-token";
 
     private MockWebServer server;
     private FlashcardsDatabase db;
@@ -56,7 +57,8 @@ public class SyncWorkerTest {
                         RuntimeEnvironment.getApplication(), FlashcardsDatabase.class)
                 .allowMainThreadQueries()
                 .build();
-        engine = new SyncEngine(ApiClient.create(server.url("/api/v1/").toString(), KEY), db);
+        engine = new SyncEngine(ApiClient.create(server.url("/api/v1/").toString(),
+                FakeTokenStore.accessOnly(TOKEN)), db);
     }
 
     @After

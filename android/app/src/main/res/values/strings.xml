@@ -10,6 +10,43 @@
     <string name="action_sync_now">Sync now</string>
     <string name="sync_queued">Syncing…</string>
 
+    <string name="nav_sign_in">Sign in</string>
+    <string name="auth_title">Sign in</string>
+    <string name="auth_passphrase">Passphrase</string>
+    <string name="auth_sign_in">Sign in</string>
+    <string name="auth_sign_out">Sign out</string>
+
+    <!-- Three explanations for one screen, because a person arrives at it in three different
+         situations and only one of them is their own doing. -->
+    <string name="auth_explanation">Your passphrase gets a token from the server so this device can sync. It is never stored on the device — only the token is.</string>
+    <!-- The one that matters. Nothing they did ended the session, and nothing else in the app
+         would tell them: the queue simply stops draining. -->
+    <string name="auth_expired">Your session ended, so syncing has stopped. Anything you have studied since is still saved here and will be sent once you sign in.</string>
+    <string name="auth_signed_in">This device is signed in. Signing in again replaces the current session.</string>
+    <!-- The whole point of not gating the app behind this screen, said out loud so backing out
+         of it reads as a choice rather than a retreat. -->
+    <string name="auth_offline_note">You do not have to sign in to use the app. Studying, writing and editing all work from this device; only syncing needs a connection to the server.</string>
+
+    <!-- Five failures a person can act on differently: retype it, wait a few minutes, wait for
+         someone to configure the server, turn the radio on, or try later. A single "sign-in
+         failed" would answer none of them — and the server one especially, because no amount of
+         retyping will ever fix it. -->
+    <string name="auth_error_empty">Type your passphrase first.</string>
+    <string name="auth_error_refused">That passphrase was not accepted.</string>
+    <!-- Deliberately vague about how long. The server counts failures over a rolling fifteen
+         minutes, so there is no single moment to name, and naming one would be wrong. -->
+    <string name="auth_error_too_many">Too many attempts. Wait a few minutes and try again.</string>
+    <!-- Not a wrong passphrase and not a passing outage: the server has no passphrase set, so
+         nothing typed here will work until somebody configures one. -->
+    <string name="auth_error_unavailable">Signing in is not set up on the server yet. Nothing you type here will work until it is.</string>
+    <string name="auth_error_offline">Signing in needs a connection.</string>
+    <string name="auth_error_server">The server could not sign you in. Try again later.</string>
+
+    <!-- The strip above the content. It is the only place a dead session surfaces on its own —
+         a background sync cannot report one through WorkManager, so this reads the store. -->
+    <string name="auth_banner_expired">Session ended — sync is paused. Tap to sign in.</string>
+    <string name="auth_banner_never">Not signed in — sync is paused. Tap to sign in.</string>
+
     <!-- Bare numbers with labels beneath them rather than "12 cards". Three figures side by
          side are read by comparing them, and a unit repeated under each one is three words in the
          way of that. -->

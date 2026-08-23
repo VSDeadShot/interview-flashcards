@@ -48,17 +48,16 @@ From `android/`:
 
 The single-class form needs the variant-specific task. `:app:test` is an aggregate the Android plugin creates, not a `Test` task, so it has no `--tests` option and fails with "Unknown command-line option".
 
-**`android/local.properties` is gitignored and has to be written by hand on a fresh clone.** Three keys, all read by the build:
+**`android/local.properties` is gitignored and has to be written by hand on a fresh clone.** Two keys now, both read by the build:
 
 ```properties
 sdk.dir=C\:/Users/you/AppData/Local/Android/Sdk
-flashcards.apiKey=<the same value the backend gets from FLASHCARDS_API_KEY>
 flashcards.baseUrl=http://10.0.2.2:8080/api/v1/
 ```
 
 `sdk.dir` needs forward slashes and an escaped drive colon. `\U` is not a properties escape, so a Windows path written with backslashes silently loses them and the failure surfaces as "The filename, directory name, or volume label syntax is incorrect", which names nothing involved.
 
-Only `sdk.dir` is required to build. A missing `flashcards.apiKey` still compiles and still runs every test — deliberately, since the scheduler and database tests need no key — and is refused by `ApiKeyInterceptor` at construction the moment anything tries to make a request, rather than being sent and answered `401`. `flashcards.baseUrl` defaults to `http://10.0.2.2:8080/api/v1/`, the emulator's alias for the host machine's loopback.
+**There is no `flashcards.apiKey` any more, and there is deliberately no key of any kind in the build.** The credential is a bearer token obtained by signing in with a passphrase and held in the app's own storage — a static key compiled into an APK is extractable by anyone holding the APK, and rotating it meant shipping a build. Only `sdk.dir` is required to build. `flashcards.baseUrl` defaults to `https://interview-flashcards.onrender.com/api/v1/`, the deployed instance; set it to `http://10.0.2.2:8080/api/v1/` — the emulator's alias for the host machine's loopback, already permitted by the debug network security config — to work against a local `bootRun`.
 
 ## Backend architecture
 
@@ -86,7 +85,7 @@ The dependency direction is `domain` → `scheduler`, never back. `Card` exposes
 
 - **`review_log` is append-only and is never read to compute a schedule.** The next interval comes from the card's own columns. The log exists so stats and streaks can be reported without replaying anything. Do not derive scheduling from it.
 - `ReviewLog.of()` takes both the before and after `SchedulingState` rather than reading the card, because by the time a review is logged the card already holds the *after* values and the *before* would otherwise be silently lost.
-- Every table carries `user_id` from day one, even though auth is currently a single shared API key. That is so a real multi-user upgrade needs no data migration — **keep populating and filtering on it** in new queries.
+- Every table carries `user_id` from day one, even though auth still resolves to one owner. That is so a real multi-user upgrade needs no data migration — **keep populating and filtering on it** in new queries.
 - `DELETE /cards/{id}` archives rather than hard-deleting (`Card.archive()`), so history survives. `idx_card_due` is a *partial* index excluding archived rows, because the study queue is the hot path and never includes them.
 - The migration's `check` constraints deliberately restate invariants `SchedulingState` already enforces in Java. That duplication is intentional: the database is the last line of defence against a write that bypasses the scheduler.
 
@@ -210,7 +209,13 @@ Everything on screen comes from Room. The network's job is to keep those tables 
 - **`ProblemInterceptor` turns every non-2xx into an `ApiException` before Retrofit sees it**, so a failure cannot be ignored by accident. The trade is that a non-2xx body is no longer readable through Retrofit; nothing needs it.
 - **`ApiException.disposition()` is the single place that decides what a failure means** — `RETRY`, `DROP`, or `STOP`. A `409` is the only status the server disambiguates for us, via `retryable`: true is a raced idempotency key, false is a reused one. A `409` with no `retryable` field is treated as permanent, because a retry loop on a conflict is the worse of the two failures.
 - **`401` carries no body at all** — the filter rejects before any handler runs, so there is no `problem+json`, no content type, and nothing to parse. Verified against the running backend, and the test says so.
-- Cleartext HTTP is permitted in **debug builds only**, and only for `10.0.2.2` and `localhost`, rather than as a blanket exemption. A real device on the LAN means adding that host to `app/src/debug/res/xml/network_security_config.xml`, setting `flashcards.baseUrl`, and starting the backend with `FLASHCARDS_BIND_ADDRESS` — all three, since the server otherwise listens on loopback alone.
+- Cleartext HTTP is permitted in **debug builds only**, and only for `10.0.2.2` and `localhost`, rather than as a blanket exemption. A real device on the LAN means adding that host to `app/src/debug/res/xml/network_security_config.xml`, setting `flashcards.baseUrl`, and starting the backend with `FLASHCARDS_BIND_ADDRESS` — all three, since the server otherwise listens on loopback alone. The release default is the deployed `https://` instance, so a release build reaches TLS or nothing.
+- **There are two HTTP clients, and the split is what makes renewal possible.** `ApiClient.create` builds the one every screen and the sync use: `AuthInterceptor` attaches the bearer token, `TokenAuthenticator` renews it. `ApiClient.auth` builds a bare one for `/auth/login`, `/auth/refresh` and `/auth/logout` — the three routes that have to work without a credential. On one client a refused refresh would trigger a refresh.
+- **Renewal is an OkHttp `Authenticator`, not an interceptor, and that placement is load-bearing.** It runs inside `RetryAndFollowUpInterceptor`, *below* the application interceptors, which has two consequences the design rests on: `ProblemInterceptor` never sees a `401` that was recovered from, so adding auth touched none of `FlashcardsApi`'s nine methods nor `SyncEngine`; and the follow-up request does **not** pass back through `AuthInterceptor`, so the authenticator has to set the header itself. `TokenAuthenticatorTest` pins both rather than trusting the reading.
+- **`401 → STOP` still holds, but STOP now means something different.** It used to mean a misconfigured build; it now means the token could not be renewed and only signing in will help. The retry cap is one renewal per call — a second `401` after a fresh token would otherwise be an unbounded loop.
+- **A refresh that fails transiently must not sign anybody out.** Only a `401` from `/auth/refresh` clears the tokens; a `503` or a dead radio leaves them alone. Sending somebody to a passphrase prompt to fix a server outage is the worse of the two mistakes.
+- **The tokens live in plain `SharedPreferences`, deliberately.** `androidx.security:security-crypto` is deprecated — its last release is an alpha, and the DataStore + Tink replacement is Coroutines-first, so the Java-only rule rules it out. The sandbox is what actually protects the file; anything that could read it could equally read the key an encrypted store would have to keep beside it. The real hole was backup, and that is closed in the manifest with `allowBackup="false"` plus a `dataExtractionRules` entry naming the file — both, because `allowBackup` does not cover device-to-device transfer on Android 12+.
+- **`TokenStore` is an interface over one implementation, and the seam earns its keep.** `PrefsTokenStore` needs a `Context` and so needs Robolectric; the remote and sync tests deliberately do not run under it. Without the interface, adding a credential to the client would have dragged the Android framework into every test that builds one.
 
 ### The UI
 
@@ -279,13 +284,13 @@ table rather than as a flag on `card`, because a candidate must never reach the 
 outbox, or a pull's delete-scope. Accepting one writes through the ordinary authoring path, so
 from that moment it is an ordinary unsynced card and everything already true of those applies.
 
-**`Graph` has two accessors for one repository, and the split is load-bearing.**
+**`Graph` has two accessors for one repository, and the split outlived its original reason.**
 `Graph.candidates` reads the band, accepts and discards without an API client; `Graph.generator`
-is the only accessor in the app that builds one. `ApiKeyInterceptor` refuses a blank key at
-construction, so a single accessor would take the whole card list down on a build with no
-`flashcards.apiKey` — the build CLAUDE.md deliberately keeps runnable. For the same reason
-`GenerateViewModel` builds its repository inside the background task rather than holding it as a
-field: the failure belongs to the one action that needs a key.
+is the only accessor in the app that builds a card client. It began as a workaround —
+`ApiKeyInterceptor` refused a blank key at construction, so one accessor would have taken the
+whole card list down on a build with no key — and that constraint is gone with the key. It stays
+because reading, accepting and discarding a candidate genuinely do not touch a network, and an
+accessor that says so is worth more than one that is merely shorter.
 
 **The editor is one destination serving three titles and two sources.** `android:label` is
 `{title}`, so "New card", "Edit card" and "Add generated card" cost neither a second destination
@@ -294,6 +299,25 @@ nor Safe Args; `cardId` and `candidateId` sit side by side as arguments and are 
 and `.topicId()`, so the fragment does not learn the difference. That was the cost this design
 accepted rather than adding a fourth destination, and it is written down here because a view
 model with two sources is otherwise the kind of thing that looks like an accident.
+
+**Signing in is a destination and emphatically not a gate.** Every screen reads Room, so somebody
+with a deck on the device studies, writes, edits and archives with no token at all; only the sync
+and generation need one. Putting a login form in front of the three tabs would have traded the
+offline-first promise for the one thing the whole cache design exists to avoid. `SignInFragment`
+sits outside the bottom bar's menu, so `AppBarConfiguration` gives it an up arrow, and it leaves
+by `popBackStack` rather than navigating on to a screen it does not own.
+
+**`AuthViewModel` is the only view model that does not watch Room, and it has a reason the others
+do not.** Whether there is a session belongs to the device rather than to the deck, so it is not
+in the database and should not be — a table would put it inside the thing the sync replaces. It
+watches the token store instead, through a listener held as a field because `SharedPreferences`
+keeps its own weakly. That listener is what closes a gap this app has had since the sync landed:
+**a rejected credential cannot reach the UI through `WorkInfo`**, because periodic work stores
+neither result's output data. Before tokens that cost little — a wrong key was a broken build,
+noticed at once. A token expires after thirty days on a device that has been working perfectly,
+and the only symptom is an outbox that quietly stops draining. The banner above the content is
+where that surfaces, and it is a standing strip rather than a snackbar because what it reports is
+a condition, not an event.
 
 **The card list is one adapter with three view types, fed one flattened list.** A `ConcatAdapter`
 would make the band's count depend on a second adapter's state, and two lists held side by side
@@ -307,6 +331,14 @@ even though both are Java.
 ### Android tests
 
 `FlashcardsDatabaseTest` runs real SQLite in memory under Robolectric — the same reasoning as the backend running real Postgres rather than H2. `robolectric.properties` pins `sdk=35` because Robolectric 4.15.1 ships no image above it while the app targets 36; that is pinned rather than lowering `targetSdk`, which would change what the app is to suit a test tool.
+
+`unitTests.returnDefaultValues = true` is on so an unmocked `android.*` call returns a default
+rather than throwing. It is there for exactly one thing: the data layer logs through
+`android.util.Log`, and the remote and auth tests run without Robolectric, so a log line would
+otherwise be reported as the class under test failing. The claim it rests on is narrow — the
+setting only changes what happens where a stub would have thrown, and nothing else in the suite
+reaches one. It is not a licence to test framework code this way; anything that actually needs
+Android still runs under Robolectric, which is every test touching Room or a fragment.
 
 The remote and mapper tests deliberately **do not** use Robolectric. Nothing in them touches the Android framework, so keeping it out makes them faster and keeps that API-35 pin confined to the database tests. `FlashcardsApiTest` runs a real `MockWebServer` on a loopback port rather than stubbing the interface, so it exercises OkHttp, Retrofit and Moshi together.
 

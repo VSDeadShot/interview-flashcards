@@ -8,4 +8,23 @@
         android:title="@string/action_sync_now"
         app:showAsAction="ifRoom" />
 
+    <!--
+        In the overflow rather than on the bar. Signing in is done once and then not thought
+        about for a month, which is the definition of what the overflow is for; the strip above
+        the content is what raises it when it actually needs raising.
+
+        Two items rather than one whose title changes: the visible one is chosen from the auth
+        state in onPrepareOptionsMenu, and a single item retitled would have to be kept in step
+        with what tapping it does.
+    -->
+    <item
+        android:id="@+id/action_sign_in"
+        android:title="@string/auth_sign_in"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_sign_out"
+        android:title="@string/auth_sign_out"
+        app:showAsAction="never" />
+
 </menu>

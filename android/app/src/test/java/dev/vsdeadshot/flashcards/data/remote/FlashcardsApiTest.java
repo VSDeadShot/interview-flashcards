@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.squareup.moshi.JsonDataException;
+import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.remote.ApiException.Disposition;
 import dev.vsdeadshot.flashcards.data.remote.dto.CardDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.ReviewRequestDto;
@@ -35,7 +36,7 @@ import org.junit.Test;
  */
 public class FlashcardsApiTest {
 
-    private static final String KEY = "test-key";
+    private static final String TOKEN = "test-access-token";
 
     private MockWebServer server;
     private FlashcardsApi api;
@@ -44,7 +45,8 @@ public class FlashcardsApiTest {
     public void startServer() throws IOException {
         server = new MockWebServer();
         server.start();
-        api = ApiClient.create(server.url("/api/v1/").toString(), KEY);
+        api = ApiClient.create(server.url("/api/v1/").toString(),
+                FakeTokenStore.accessOnly(TOKEN));
     }
 
     @After
@@ -84,23 +86,33 @@ public class FlashcardsApiTest {
             }""";
 
     @Test
-    public void everyRequestCarriesTheApiKey() throws Exception {
+    public void everyRequestCarriesTheAccessToken() throws Exception {
         respond(200, "[]");
 
         api.topics().execute();
 
         RecordedRequest sent = server.takeRequest();
         assertEquals("without this header the server answers 401 and nothing else works",
-                KEY, sent.getHeaders().get("X-API-Key"));
+                "Bearer " + TOKEN, sent.getHeaders().get("Authorization"));
     }
 
+    /**
+     * The opposite of the rule the API key had, and deliberately so. A missing key was refused
+     * at construction, because a build without one was broken; not being signed in is an
+     * ordinary state of this app. The request goes out bare and the server's 401 is what says
+     * so — which is also what gives the authenticator below the client something to react to.
+     */
     @Test
-    public void aBlankKeyIsRefusedBeforeAnythingIsSent() {
-        IllegalStateException refused = assertThrows(IllegalStateException.class,
-                () -> ApiClient.create(server.url("/").toString(), ""));
+    public void noTokenMeansNoHeaderRatherThanNoRequest() throws Exception {
+        FlashcardsApi anonymous = ApiClient.create(
+                server.url("/api/v1/").toString(), FakeTokenStore.signedOut());
+        respond(200, "[]");
 
-        assertTrue("the message has to name the property, not the symptom",
-                refused.getMessage().contains("local.properties"));
+        anonymous.topics().execute();
+
+        RecordedRequest sent = server.takeRequest();
+        assertNull("a request with nothing to present should present nothing",
+                sent.getHeaders().get("Authorization"));
     }
 
     @Test
@@ -262,14 +274,23 @@ public class FlashcardsApiTest {
                 Disposition.DROP, failure.disposition());
     }
 
+    /**
+     * A 401 that nothing can be done about. The client here holds no refresh token, so the
+     * authenticator has nothing to try and the status travels straight up — which is the case
+     * this assertion is about. When there <em>is</em> a refresh token the 401 is answered rather
+     * than reported, and {@code TokenAuthenticatorTest} covers that.
+     */
     @Test
-    public void aRejectedKeyStopsTheWholeSyncRatherThanOneEntry() {
+    public void anUnrecoverableRejectionStopsTheWholeSyncRatherThanOneEntry() {
+        FlashcardsApi anonymous = ApiClient.create(
+                server.url("/api/v1/").toString(), FakeTokenStore.signedOut());
         // Exactly what the running backend answers, checked against it: the filter rejects the
         // request before any handler runs, so there is no problem+json here — no body at all,
         // and no content type. The status is the whole message.
         server.enqueue(new MockResponse.Builder().code(401).build());
 
-        ApiException failure = assertThrows(ApiException.class, () -> api.stats().execute());
+        ApiException failure =
+                assertThrows(ApiException.class, () -> anonymous.stats().execute());
 
         assertEquals(401, failure.status());
         assertNull("an empty body is not a parse failure worth reporting", failure.detail());

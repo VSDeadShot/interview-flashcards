@@ -30,7 +30,7 @@ public final class SyncWorker extends Worker {
 
     public SyncWorker(@NonNull Context context, @NonNull WorkerParameters parameters) {
         this(context, parameters,
-                new SyncEngine(ApiClient.create(), FlashcardsDatabase.get(context)));
+                new SyncEngine(ApiClient.create(context), FlashcardsDatabase.get(context)));
     }
 
     /** For tests, which supply an engine pointed at a loopback server and an in-memory cache. */
@@ -54,9 +54,14 @@ public final class SyncWorker extends Worker {
                 + result.cardsWritten() + " cards");
 
         if (result.outcome() == Outcome.STOPPED) {
-            // The key was rejected. A backoff timer cannot fix that, and retrying would spend
-            // the battery repeating one 401 until something changes the key — which only a
-            // person can do.
+            // The request could not be authenticated, and the authenticator below the client
+            // has already tried to renew the token and failed. A backoff timer cannot fix that:
+            // it needs somebody to sign in again, and retrying would spend the battery repeating
+            // one 401 until they do.
+            //
+            // This result is not how they find out. Neither result's output data is stored for
+            // periodic work, so the only thing that reaches a screen is the store the
+            // authenticator wrote its reason into.
             return Result.failure();
         }
         // Anything left in the outbox, or a pull that did not finish, wants another attempt

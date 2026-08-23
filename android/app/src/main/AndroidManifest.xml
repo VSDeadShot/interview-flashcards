@@ -1,14 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- The only permission this app needs. Everything it shows comes from its own database;
          the network is for syncing that database, not for reading a screen. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!--
+        allowBackup="false" because the sandbox is what protects the stored tokens, and a backup
+        is the one thing that carries a file out of the sandbox. dataExtractionRules covers the
+        device-to-device transfer that allowBackup does not, and names the token file
+        specifically so that turning backup on again later for the deck cannot take the
+        credentials with it.
+
+        Lint asks for android:fullBackupContent alongside it, since dataExtractionRules applies
+        only from Android 12 and minSdk is 26. There is nothing for it to say: allowBackup="false"
+        switches backup off on every version, so a set of rules describing what to back up would
+        be describing something that does not happen. The rules file earns its place solely for
+        the device-transfer channel on 12 and above, which allowBackup does not cover.
+    -->
     <application
         android:name=".FlashcardsApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:ignore="DataExtractionRules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"

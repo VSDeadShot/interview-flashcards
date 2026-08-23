@@ -2,11 +2,14 @@ package dev.vsdeadshot.flashcards.ui;
 
 import android.content.Context;
 import androidx.annotation.VisibleForTesting;
+import dev.vsdeadshot.flashcards.data.AuthRepository;
 import dev.vsdeadshot.flashcards.data.CandidateRepository;
 import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.ReviewRepository;
 import dev.vsdeadshot.flashcards.data.StatsRepository;
 import dev.vsdeadshot.flashcards.data.StudyRepository;
+import dev.vsdeadshot.flashcards.data.auth.PrefsTokenStore;
+import dev.vsdeadshot.flashcards.data.auth.TokenStore;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.remote.ApiClient;
 import java.time.Clock;
@@ -105,15 +108,30 @@ public final class Graph {
 
     /**
      * The same repository with the means to ask for a batch. Generating is the only thing in
-     * this app that has to reach a server, so this is the only accessor here that builds an
-     * API client.
+     * this app that has to reach a server, so this is the only accessor here that builds a
+     * card API client.
      *
-     * <p>Built per call, from a background thread, because {@code ApiKeyInterceptor} refuses a
-     * missing key at construction. A build with no key still runs every screen; it fails at the
-     * one action that needs one.
+     * <p>The split from {@link #candidates} predates tokens and outlives them. It existed
+     * because the API key was refused at construction, so one accessor would have taken the
+     * whole card list down on a build with no key; it stays because reading, accepting and
+     * discarding a candidate genuinely do not touch a network, and an accessor that says so is
+     * worth more than one that is merely shorter.
      */
     public static CandidateRepository generator(Context context) {
         return new CandidateRepository(
-                database(context), ApiClient.create(), Clock.systemDefaultZone());
+                database(context), ApiClient.create(context), Clock.systemDefaultZone());
+    }
+
+    /**
+     * The tokens, shared by every client and every screen in the process — the same instance,
+     * so a screen watching for a change sees the one the sync's authenticator wrote.
+     */
+    public static TokenStore tokens(Context context) {
+        return PrefsTokenStore.get(context);
+    }
+
+    /** Signing in and out. Built on the bare client, which carries no credential of its own. */
+    public static AuthRepository auth(Context context) {
+        return new AuthRepository(ApiClient.auth(), tokens(context));
     }
 }

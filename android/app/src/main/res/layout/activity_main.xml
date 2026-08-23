@@ -5,6 +5,7 @@
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -34,6 +35,26 @@
             android:layout_height="?attr/actionBarSize" />
 
     </com.google.android.material.appbar.AppBarLayout>
+
+    <!--
+        Where a dead session surfaces. It has to be somewhere: a background sync cannot report a
+        rejected credential through WorkInfo — periodic work stores neither result's output data
+        — so the only thing that can reach a screen is the token store the authenticator wrote
+        its reason into, and this is what reads it.
+
+        A strip above the content rather than a dialog or a snackbar. What it reports is a
+        standing condition, not an event: the outbox is not draining and will not until somebody
+        signs in, so a message that dismisses itself after four seconds would be the wrong shape
+        for it. Gone by default, and gone the moment there is a session again.
+    -->
+    <TextView
+        android:id="@+id/auth_banner"
+        style="@style/Widget.Flashcards.Banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        tools:text="Session ended — sync is paused. Tap to sign in."
+        tools:visibility="visible" />
 
     <!--
         A FragmentContainerView rather than a FrameLayout: it is what NavHostFragment is

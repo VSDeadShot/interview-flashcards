@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    One field and one button. There is no account to create, no name to give and nothing to
+    recover — one passphrase, set on the server, which is the whole of what this screen has to
+    collect. Anything else on it would be there to make it look like a login page.
+-->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="32dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/auth_title"
+            android:textAppearance="@style/TextAppearance.Flashcards.ScreenTitle" />
+
+        <!--
+            Set from the auth state rather than written here, because it answers a different
+            question depending on how somebody arrived: a session that expired underneath them
+            is not the same event as never having signed in, and only one of the two is worth
+            an apology.
+        -->
+        <TextView
+            android:id="@+id/sign_in_explanation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/auth_explanation"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!--
+            A label above the field, not a hint inside it. Widget.Flashcards.TextField sets
+            hintEnabled="false" — the design puts labels above fields throughout — so a hint on
+            the layout is simply never drawn, and this field would otherwise be an unlabelled
+            white box. Found by looking at the screen, which is the only thing that finds it: the
+            layout inflates and every test passes either way.
+        -->
+        <TextView
+            style="@style/TextAppearance.Flashcards.SectionLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:labelFor="@id/sign_in_passphrase"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="7dp"
+            android:text="@string/auth_passphrase" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Flashcards.TextField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:endIconMode="password_toggle">
+
+            <!--
+                textPassword, with the reveal toggle beside it. A passphrase long enough to be
+                worth having is long enough to mistype, and the alternative to being able to
+                check it is a second attempt that spends one of ten before the server starts
+                refusing them.
+            -->
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/sign_in_passphrase"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:autofillHints="password"
+                android:imeOptions="actionDone"
+                android:inputType="textPassword" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!--
+            Under the field, not in a snackbar. Every one of these messages is answered by doing
+            something with the field above it — retype it, wait, or stop and go and configure the
+            server — so the field has to still be on screen when the message arrives.
+        -->
+        <TextView
+            android:id="@+id/sign_in_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorError"
+            android:visibility="gone"
+            tools:text="That passphrase was not accepted." />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/sign_in_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/sign_in_submit"
+            style="@style/Widget.Flashcards.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/auth_sign_in" />
+
+        <!--
+            The reassurance that makes leaving without signing in a real option. Somebody who
+            cannot remember the passphrase should know the app still works, rather than backing
+            out of a screen that looked like a wall.
+        -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/auth_offline_note"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

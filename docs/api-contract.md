@@ -259,6 +259,22 @@ which one is asking. So neither is trusted: the whole `family_id` is revoked, in
 token still in use, and both are sent back to the passphrase. Signing in again is much the cheaper
 failure against a copied token that would otherwise work for a month.
 
+**What a client has to do about all this.** Three rules, and the third is the one reuse detection
+turns into an obligation:
+
+1. Renew on `401`, do not predict expiry. `expiresIn` is there to be read, not to be turned back
+   into a deadline against a clock this server does not control.
+2. Store both halves of a pair or neither. Half a pair is worse than none — a refresh token
+   without its access token gets presented on the next request and spent for nothing.
+3. **Never present a refresh token twice.** Rotation means the previous one is spent the instant
+   its successor is issued, and presenting it again is indistinguishable from a copy in
+   circulation, so it costs the whole family. A client refreshing on two threads at once has to
+   serialise them; one refresh has to serve both.
+
+A `401` a client cannot recover from — no refresh token, or one the server has finished with —
+is permanent until somebody signs in. It is not worth a backoff, and a queue of work behind it
+should stop rather than repeat one identical failure per entry.
+
 `POST /api/v1/auth/logout` — `{refreshToken}` → `204`, revoking that family and **only** that
 family. Signing out on one device has no business ending a session on another; with one device the
 two behave identically, so the narrower rule costs nothing now and is already right later. `204`

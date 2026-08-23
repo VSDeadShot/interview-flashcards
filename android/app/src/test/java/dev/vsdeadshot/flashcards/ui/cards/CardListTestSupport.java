@@ -46,6 +46,11 @@ import org.robolectric.annotation.Config;
 @Config(application = Application.class)
 public abstract class CardListTestSupport {
 
+    /** How many idle-and-pause cycles {@link #awaitDiff} gives the diff pool. */
+    private static final int DIFF_ATTEMPTS = 10;
+
+    private static final long DIFF_PAUSE_MS = 5L;
+
     protected FlashcardsDatabase db;
 
     @Before
@@ -93,6 +98,29 @@ public abstract class CardListTestSupport {
         Graph.io().execute(behindTheRead::countDown);
         behindTheRead.await(10, TimeUnit.SECONDS);
         shadowOf(Looper.getMainLooper()).idle();
+        awaitDiff();
+    }
+
+    /**
+     * Waits for {@code ListAdapter} to finish diffing.
+     *
+     * <p>The read above is not the last thing that has to happen. {@code submitList} computes its
+     * diff on {@code AsyncDifferConfig}'s own background pool and posts the result back to the
+     * main thread, and nothing here has a handle on that pool to await — so idling the looper
+     * once can run ahead of a diff that has not been posted yet, and the assertion then reads a
+     * list that has not changed. This surfaced as a rare failure in
+     * {@code choosingATopicLeavesOnlyItsCards} rather than a consistent one, which is what a race
+     * looks like from the outside.
+     *
+     * <p>A real pause between idles is what lets the pool run: {@code idleFor} advances the
+     * shadow clock and does not yield to another thread. Bounded, so a genuine hang still fails
+     * rather than looping.
+     */
+    private void awaitDiff() throws InterruptedException {
+        for (int attempt = 0; attempt < DIFF_ATTEMPTS; attempt++) {
+            Thread.sleep(DIFF_PAUSE_MS);
+            shadowOf(Looper.getMainLooper()).idle();
+        }
     }
 
     /** Re-lays the list out, which is what binds rows the last change added. */

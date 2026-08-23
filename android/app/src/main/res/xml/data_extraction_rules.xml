@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Belt and braces beside android:allowBackup="false".
+
+    allowBackup="false" already switches off cloud backup, but it does not by itself cover
+    device-to-device transfer, which is a separate channel with its own section here. Both are
+    named so that a later change to allowBackup — someone deciding the deck would be nice to
+    restore, which it would — cannot quietly take the tokens with it.
+
+    "auth" is the preferences file PrefsTokenStore writes to, and it has a file of its own
+    precisely so that this rule can name it. Excluding it rather than everything leaves room to
+    back up something harmless later without having to work out what is in the same file.
+-->
+<data-extraction-rules>
+
+    <cloud-backup>
+        <exclude
+            domain="sharedpref"
+            path="auth.xml" />
+    </cloud-backup>
+
+    <device-transfer>
+        <exclude
+            domain="sharedpref"
+            path="auth.xml" />
+    </device-transfer>
+
+</data-extraction-rules>
