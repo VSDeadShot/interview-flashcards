@@ -15,6 +15,38 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.withInputStream { localProperties.load(it) }
 }
 
+// Release signing, read from a gitignored keystore.properties beside local.properties. The
+// keystore itself lives outside this repository: a file that is not in the tree cannot be
+// committed by accident, and it has to outlive the working copy, because losing this key means
+// never being able to update an app already installed from it.
+//
+// Absent on a fresh clone, and the build has to survive that — an unsigned release APK is a
+// perfectly good outcome for somebody who has no keystore and is not shipping. What it must not
+// do is fail obscurely, so the two ways of being half-configured are checked below and named.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def hasSigningConfig = keystorePropertiesFile.exists()
+if (hasSigningConfig) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+
+    def missing = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].findAll {
+        !keystoreProperties.getProperty(it)?.trim()
+    }
+    if (!missing.isEmpty()) {
+        // Left blank rather than absent. Signing would otherwise fail deep inside AGP with a
+        // message about a keystore password, which names the symptom and not the file to edit.
+        throw new GradleException(
+                "keystore.properties is missing values for ${missing.join(', ')}. " +
+                        "Fill them in, or delete the file to build an unsigned release.")
+    }
+    if (!file(keystoreProperties['storeFile']).exists()) {
+        throw new GradleException(
+                "keystore.properties points at ${keystoreProperties['storeFile']}, which does " +
+                        "not exist. The keystore lives outside the repository, so a fresh " +
+                        "clone will not have brought it with it.")
+    }
+}
+
 android {
     namespace 'dev.vsdeadshot.flashcards'
     compileSdk 36
@@ -75,9 +107,48 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            if (hasSigningConfig) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+
+            // v1 is JAR signing, and it is only consulted below API 24. minSdk is 26, so it
+            // would sign every entry a second time to satisfy platforms this app already
+            // refuses to install on. Off deliberately rather than by default.
+            enableV1Signing false
+
+            // The baseline every supported device verifies.
+            enableV2Signing true
+
+            // v3 is what makes key rotation possible at all. It is the only scheme that carries
+            // a proof-of-rotation lineage, and the lineage has to be signed by the key being
+            // rotated away from — so a build shipped without v3 can never rotate, and the key
+            // becomes permanent the moment somebody installs it. Enabled now, while it is one
+            // line, rather than discovered later when it is nothing at all.
+            enableV3Signing true
+        }
+    }
+
     buildTypes {
         release {
+            // Still off, and deliberately not switched on in the same change as signing. Moshi
+            // reads the DTOs reflectively — they are plain Java classes with no codegen — so R8
+            // renaming a field is the difference between `accessToken` and `a`, and every
+            // response silently stops parsing. Room's entities and the Retrofit interface have
+            // the same exposure. None of it is caught by the unit tests, which never run R8, so
+            // turning this on needs keep rules and a run on a device, which is its own change.
             minifyEnabled false
+
+            // Conditional, so a clone without a keystore still produces a release APK — unsigned,
+            // which is honest, rather than failing the build for want of a key it was never
+            // given.
+            if (hasSigningConfig) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

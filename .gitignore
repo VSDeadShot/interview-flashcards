@@ -14,6 +14,13 @@ application-local.properties
 *.keystore
 *.p12
 
+# The release signing config: paths and passwords for the upload key. Ignored beside the
+# keystore patterns above rather than near the Android section, because what makes it dangerous
+# is the two passwords in it, not the platform it belongs to. The keystore itself lives outside
+# this repository entirely — a file that is not in the tree cannot be swept in by a `git add -f`
+# or a later edit to this file.
+keystore.properties
+
 # --- Gradle (both builds) ---
 .gradle/
 build/
