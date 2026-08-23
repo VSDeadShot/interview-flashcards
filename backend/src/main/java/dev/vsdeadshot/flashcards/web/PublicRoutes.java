@@ -20,7 +20,7 @@ final class PublicRoutes {
     private static final String API_PREFIX = "/api/";
 
     /**
-     * Sign-in and, shortly, refresh and sign-out. A prefix rather than an exact path, so the
+     * Sign-in, refresh and sign-out. A prefix rather than an exact path, so the
      * routes that join it are exempt by living here -- which is also the risk, and why the test
      * asserts on the actual mapped routes rather than on this constant.
      */

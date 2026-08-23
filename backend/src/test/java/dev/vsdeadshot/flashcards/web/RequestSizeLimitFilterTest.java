@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -76,7 +77,7 @@ class RequestSizeLimitFilterTest extends EmbeddedPostgresTest {
             // Deliberately well past the cap but nowhere near the 30MB that provoked this: the
             // point is the threshold, and a test should not allocate what it is guarding against.
             mvc.perform(post("/api/v1/cards")
-                            .header(ApiKeyFilter.HEADER, TEST_API_KEY)
+                            .header(HttpHeaders.AUTHORIZATION, bearer())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("x".repeat(RequestSizeLimitFilter.MAX_BYTES + 1)))
                     .andExpect(status().isContentTooLarge())
@@ -88,7 +89,7 @@ class RequestSizeLimitFilterTest extends EmbeddedPostgresTest {
         @DisplayName("answers in problem+json like every other failure")
         void refusalIsProblemJson() throws Exception {
             String contentType = mvc.perform(post("/api/v1/cards")
-                            .header(ApiKeyFilter.HEADER, TEST_API_KEY)
+                            .header(HttpHeaders.AUTHORIZATION, bearer())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("x".repeat(RequestSizeLimitFilter.MAX_BYTES + 1)))
                     .andReturn()
@@ -111,7 +112,7 @@ class RequestSizeLimitFilterTest extends EmbeddedPostgresTest {
         @DisplayName("still accepts a card at the contract's own size limit")
         void acceptsTheLargestLegalCard() throws Exception {
             mvc.perform(post("/api/v1/cards")
-                            .header(ApiKeyFilter.HEADER, TEST_API_KEY)
+                            .header(HttpHeaders.AUTHORIZATION, bearer())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(cardJson(10_000)))
                     .andExpect(status().isCreated());
@@ -121,7 +122,7 @@ class RequestSizeLimitFilterTest extends EmbeddedPostgresTest {
         @DisplayName("leaves an ordinary card alone")
         void acceptsAnOrdinaryCard() throws Exception {
             mvc.perform(post("/api/v1/cards")
-                            .header(ApiKeyFilter.HEADER, TEST_API_KEY)
+                            .header(HttpHeaders.AUTHORIZATION, bearer())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(cardJson(20)))
                     .andExpect(status().isCreated());

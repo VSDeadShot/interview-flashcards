@@ -53,7 +53,7 @@ public class CardController {
      */
     @GetMapping
     public List<CardResponse> list(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @RequestParam(required = false) Long topicId,
             @RequestParam(defaultValue = "false") boolean includeArchived) {
         return cards.list(userId, topicId, includeArchived).stream().map(CardResponse::from).toList();
@@ -67,7 +67,7 @@ public class CardController {
      */
     @PostMapping
     public ResponseEntity<CardResponse> create(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @Valid @RequestBody CardRequest request) {
         CardCreation created = cards.create(
                 userId, request.topicId(), request.front(), request.back(), request.clientCardId());
@@ -79,7 +79,7 @@ public class CardController {
     /** Edits the text and the topic only — a typo fix must not reset the card's schedule. */
     @PutMapping("/{id}")
     public CardResponse update(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @PathVariable long id,
             @Valid @RequestBody CardRequest request) {
         return CardResponse.from(
@@ -97,7 +97,7 @@ public class CardController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @PathVariable long id) {
         cards.archive(userId, id);
     }
@@ -113,7 +113,7 @@ public class CardController {
      */
     @PostMapping("/generate")
     public GenerateResponse generate(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @Valid @RequestBody GenerateRequest request) {
         return new GenerateResponse(
                 generator.generate(userId, request.topicId(), request.focus(), request.count())

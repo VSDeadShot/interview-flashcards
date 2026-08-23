@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.vsdeadshot.flashcards.domain.AuthToken;
 import dev.vsdeadshot.flashcards.domain.TokenKind;
 import dev.vsdeadshot.flashcards.repository.AuthTokenRepository;
-import dev.vsdeadshot.flashcards.service.TokenService;
 import dev.vsdeadshot.flashcards.support.EmbeddedPostgresTest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -26,14 +25,18 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Two credentials, coexisting.
+ * The only credential this API accepts.
  *
- * <p>The API key is not removed by this change, so the thing most worth pinning is that adding
- * bearer tokens did not quietly break it — an application that only authenticated the new way
- * would strand every client build already out there.
+ * <p>This class used to be about two credentials coexisting, and its most important assertion
+ * was that adding tokens had not broken the key. The key is gone, and the assertion that
+ * replaces it is the inverse: <strong>a request presenting nothing is refused</strong>. While
+ * the key existed, a request with no bearer header was simply not addressed to this filter and
+ * fell through to be judged elsewhere. With nothing behind it, falling through would mean
+ * serving an unauthenticated request — so the absence of a header and a bad one now answer the
+ * same way.
  *
- * <p>Aimed at {@code /api/v1/topics}, a route that exists, so a request the filters allow
- * through answers {@code 200} and one they refuse answers {@code 401}. Nothing here depends on
+ * <p>Aimed at {@code /api/v1/topics}, a route that exists, so a request the filter allows
+ * through answers {@code 200} and one it refuses answers {@code 401}. Nothing here depends on
  * what that endpoint actually returns.
  */
 @AutoConfigureMockMvc
@@ -49,9 +52,6 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
     private MockMvc mvc;
 
     @Autowired
-    private TokenService tokens;
-
-    @Autowired
     private AuthTokenRepository repository;
 
     @Autowired
@@ -62,12 +62,8 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
         repository.deleteAll();
     }
 
-    private String bearer() {
-        return "Bearer " + tokens.issue(TEST_USER_ID).accessToken();
-    }
-
     /**
-     * Computed here rather than borrowed from {@link TokenService}, so a planted row does not
+     * Computed here rather than borrowed from {@code TokenService}, so a planted row does not
      * depend on the class under test to decide what a digest is.
      */
     private static String digestOf(String token) {
@@ -84,29 +80,54 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
     class Valid {
 
         @Test
-        @DisplayName("authenticates a request carrying no key at all")
-        void authenticatesWithoutAKey() throws Exception {
+        @DisplayName("authenticates the request")
+        void authenticates() throws Exception {
             mvc.perform(get(ROUTE).header(HttpHeaders.AUTHORIZATION, bearer()))
                     .andExpect(status().isOk());
         }
     }
 
+    /**
+     * The behaviour this change inverted, and the reason the class is worth reading. Each of
+     * these used to fall through to the API key filter; there is nothing behind them now, so
+     * each has to be a refusal in its own right rather than a decision deferred.
+     */
     @Nested
-    @DisplayName("with the key this change does not remove")
-    class OldKey {
+    @DisplayName("with nothing to authenticate")
+    class Missing {
 
-        /** The migration's whole promise: nothing that worked before stops working. */
         @Test
-        @DisplayName("still authenticates a request presenting only the API key")
-        void theKeyStillWorks() throws Exception {
-            mvc.perform(get(ROUTE).header(ApiKeyFilter.HEADER, TEST_API_KEY))
-                    .andExpect(status().isOk());
+        @DisplayName("refuses a request with no Authorization header")
+        void refusesAnAbsentHeader() throws Exception {
+            mvc.perform(get(ROUTE)).andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("still refuses a request presenting neither")
-        void neitherIsStillRefused() throws Exception {
-            mvc.perform(get(ROUTE)).andExpect(status().isUnauthorized());
+        @DisplayName("refuses an Authorization header that is not a bearer token")
+        void refusesAnotherScheme() throws Exception {
+            // This used to fall through as "not addressed to this filter", which was right only
+            // while something else could still authenticate it.
+            mvc.perform(get(ROUTE).header(HttpHeaders.AUTHORIZATION, "Basic abc"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("refuses a bearer header carrying nothing")
+        void refusesAnEmptyToken() throws Exception {
+            mvc.perform(get(ROUTE).header(HttpHeaders.AUTHORIZATION, "Bearer "))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        /**
+         * The header this API stopped reading. Worth its own case: a client still sending it is
+         * the exact situation this change creates, and the answer has to be a plain {@code 401}
+         * rather than anything that looks like the key was considered.
+         */
+        @Test
+        @DisplayName("refuses a request still presenting the retired API key header")
+        void refusesTheRetiredKeyHeader() throws Exception {
+            mvc.perform(get(ROUTE).header("X-API-Key", "whatever-the-old-key-was"))
+                    .andExpect(status().isUnauthorized());
         }
     }
 
@@ -151,29 +172,18 @@ class AuthTokenFilterTest extends EmbeddedPostgresTest {
         }
 
         /**
-         * A failed token is refused outright rather than passed along to the key filter.
-         * Otherwise the answer would depend on which credential happened to be checked first,
-         * and a client holding a stale token would be quietly authenticated by a key it also
-         * still carried — hiding the expiry this whole design relies on being visible.
+         * A refresh token is long-lived precisely because it only ever reaches one endpoint.
+         * Accepting one here would hand a thirty-day credential to every route.
          */
         @Test
-        @DisplayName("refuses a bad token even when a valid key is presented alongside it")
-        void aBadTokenIsNotRescuedByAValidKey() throws Exception {
-            mvc.perform(get(ROUTE)
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer made-up")
-                            .header(ApiKeyFilter.HEADER, TEST_API_KEY))
-                    .andExpect(status().isUnauthorized());
-        }
+        @DisplayName("refuses a refresh token presented as a bearer credential")
+        void refusesARefreshTokenAsABearer() throws Exception {
+            Instant now = clock.instant();
+            repository.save(new AuthToken(TEST_USER_ID, digestOf(PLANTED_TOKEN),
+                    TokenKind.REFRESH, UUID.randomUUID(), now, now.plus(Duration.ofDays(30))));
 
-        @Test
-        @DisplayName("ignores an Authorization header that is not a bearer token")
-        void ignoresAnotherScheme() throws Exception {
-            // Not this filter's to refuse: a Basic header is a request it was not addressed by,
-            // so it falls through and the key filter has the final say.
-            mvc.perform(get(ROUTE)
-                            .header(HttpHeaders.AUTHORIZATION, "Basic abc")
-                            .header(ApiKeyFilter.HEADER, TEST_API_KEY))
-                    .andExpect(status().isOk());
+            mvc.perform(get(ROUTE).header(HttpHeaders.AUTHORIZATION, "Bearer " + PLANTED_TOKEN))
+                    .andExpect(status().isUnauthorized());
         }
     }
 }

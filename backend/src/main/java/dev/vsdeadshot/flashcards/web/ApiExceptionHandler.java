@@ -136,7 +136,7 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * A bodyless {@code 401}, matching what {@code ApiKeyFilter} and {@code AuthTokenFilter}
+     * A bodyless {@code 401}, matching what {@code AuthTokenFilter}
      * return. Those two answer from inside a filter, where no handler runs and there is nothing
      * to serialise; this one could return a problem body and deliberately does not, so a client
      * has one shape to recognise for "you are not authenticated" rather than two.

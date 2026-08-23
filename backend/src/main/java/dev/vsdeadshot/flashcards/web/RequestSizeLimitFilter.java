@@ -26,7 +26,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * describes what a card may contain; this describes what the server will accept off the wire,
  * and only the second one bounds memory.
  *
- * <p>Ordered <strong>after</strong> {@link ApiKeyFilter} on purpose. A request with no key is
+ * <p>Ordered <strong>after</strong> {@link AuthTokenFilter} on purpose. An unauthenticated request is
  * already refused before the servlet reads a byte, so the unauthenticated case costs nothing
  * either way — and running this first would answer an unauthenticated caller {@code 413} where
  * the contract says every unauthenticated request looks alike. Keeping the key check first means
@@ -36,7 +36,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Order(RequestSizeLimitFilter.ORDER)
 public class RequestSizeLimitFilter extends OncePerRequestFilter {
 
-    public static final int ORDER = ApiKeyFilter.ORDER + 10;
+    public static final int ORDER = AuthTokenFilter.ORDER + 10;
 
     /**
      * Comfortably above anything legitimate and far below anything dangerous.

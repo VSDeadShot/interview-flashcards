@@ -13,29 +13,42 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Authenticates a request presenting {@code Authorization: Bearer}.
+ * Rejects any request to {@code /api/**} that does not present a valid bearer token.
  *
- * <p>Runs ahead of {@link ApiKeyFilter} and publishes the same {@code userId} attribute, so
- * every controller, service and repository behind it is untouched by which credential arrived.
- * That seam is the whole reason this change is small.
+ * <p>The only thing authenticating this API. The shared API key it ran alongside is gone: a
+ * static secret that every client build had to carry is extractable by anyone holding a build,
+ * cannot be revoked without shipping another, and identifies nobody. A token is obtained by
+ * signing in, expires on its own, and can be withdrawn from the server.
  *
- * <p><strong>A request with no bearer token falls through rather than being refused.</strong>
- * The API key still authenticates while it exists, and this filter has no opinion about a
- * request that is not addressed to it. A request that *does* carry a bearer token and fails is
- * refused here and does not fall through -- presenting a broken token and then being let in on
- * a key would make the outcome depend on the order two credentials happened to be checked.
+ * <p>Runs before the dispatcher, so an unauthenticated caller cannot learn which paths exist: a
+ * bad token gets {@code 401} whether the endpoint is real or not.
+ *
+ * <p><strong>A request with no {@code Authorization} header is now refused rather than passed
+ * on.</strong> That is the inversion this change turns on. While the key existed, a request
+ * carrying no bearer token was simply not addressed to this filter and fell through to be judged
+ * by the other one; with nothing behind it, falling through means serving an unauthenticated
+ * request. The absent header and the bad one now get the same answer, which is also the honest
+ * one — neither established who is calling.
  */
 @Component
 @Order(AuthTokenFilter.ORDER)
 public class AuthTokenFilter extends OncePerRequestFilter {
 
     /**
-     * Ahead of {@link ApiKeyFilter}, so the newer credential is the one consulted first and the
-     * older one only ever sees what the newer one declined to handle. Stated as a number
-     * relative to nothing, unlike {@code RequestSizeLimitFilter}, because this has to come
-     * first and there is nothing above it to be relative to.
+     * First of this application's filters, and stated rather than left to chance. Two filter
+     * beans with no order between them are ordered arbitrarily, so the guarantee that an
+     * unauthenticated request is refused before anything else looks at it would otherwise rest
+     * on nothing. {@link RequestSizeLimitFilter} places itself relative to this.
      */
     public static final int ORDER = 5;
+
+    /**
+     * Where the authenticated owner is published for controllers to pick up with
+     * {@code @RequestAttribute}. This is the seam a real subject claim will arrive through,
+     * which is why controllers read it from the request rather than from configuration — and
+     * why swapping the credential underneath it changed no controller, service or repository.
+     */
+    public static final String USER_ID_ATTRIBUTE = "userId";
 
     private static final String PREFIX = "Bearer ";
 
@@ -57,20 +70,27 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith(PREFIX)) {
-            chain.doFilter(request, response);
+            unauthorized(response);
             return;
         }
 
         Optional<String> userId = tokens.authenticate(header.substring(PREFIX.length()).trim());
         if (userId.isEmpty()) {
-            // No body, exactly as the key filter answers. Unknown, expired and revoked are one
-            // response on purpose: a caller told which of those applied learns something about
-            // a token they failed to present correctly.
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            unauthorized(response);
             return;
         }
 
-        request.setAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE, userId.get());
+        request.setAttribute(USER_ID_ATTRIBUTE, userId.get());
         chain.doFilter(request, response);
+    }
+
+    /**
+     * No body, per the contract. Missing, malformed, unknown, expired and revoked are one
+     * response on purpose: a caller told which of those applied learns something about a token
+     * they failed to present, and there is nothing useful to say to somebody who did not
+     * authenticate beyond the fact that they did not.
+     */
+    private static void unauthorized(HttpServletResponse response) {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
     }
 }

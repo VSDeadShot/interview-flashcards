@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
  * instance is serving.
  *
  * <p><strong>Deliberately outside {@code /api/}</strong>, which is what makes it the one route
- * {@link ApiKeyFilter} does not guard. A probe cannot present a credential, and an authenticated
+ * {@link AuthTokenFilter} does not guard. A probe cannot present a credential, and an authenticated
  * health check answers {@code 401} forever — which a platform reads as a permanently unhealthy
  * instance and restarts on a loop. Any future replacement for that filter inherits the exemption
  * for free, because it is a property of the path rather than an entry on a list somewhere.

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -39,8 +40,8 @@ class TopicControllerTest extends EmbeddedPostgresTest {
     @Autowired
     private TopicService topics;
 
-    private static MockHttpServletRequestBuilder authorised(MockHttpServletRequestBuilder request) {
-        return request.header(ApiKeyFilter.HEADER, TEST_API_KEY);
+    private MockHttpServletRequestBuilder authorised(MockHttpServletRequestBuilder request) {
+        return request.header(HttpHeaders.AUTHORIZATION, bearer());
     }
 
     @Nested

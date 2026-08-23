@@ -26,7 +26,7 @@ class PassphraseAuthenticatorTest {
 
     private static PassphraseAuthenticator with(String hash) {
         return new PassphraseAuthenticator(
-                new FlashcardsProperties("key", "user", ZoneId.of("UTC"), hash));
+                new FlashcardsProperties("user", ZoneId.of("UTC"), hash));
     }
 
     @Nested

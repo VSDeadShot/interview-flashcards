@@ -26,7 +26,7 @@ public class StatsController {
     }
 
     @GetMapping
-    public Stats stats(@RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId) {
+    public Stats stats(@RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId) {
         return stats.forUser(userId);
     }
 }

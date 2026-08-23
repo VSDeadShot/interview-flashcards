@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  * because {@link ApiExceptionHandler} owns it, and no ownership check because
  * {@link TopicService} takes the owner as a parameter and filters in the query.
  *
- * <p>{@code userId} arrives as a request attribute set by {@link ApiKeyFilter}, not from
+ * <p>{@code userId} arrives as a request attribute set by {@link AuthTokenFilter}, not from
  * configuration. That is the seam: when the shared key becomes a real token, the filter starts
  * publishing a subject claim and nothing in this class changes.
  */
@@ -37,7 +37,7 @@ public class TopicController {
 
     @GetMapping
     public List<TopicResponse> list(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId) {
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId) {
         return topics.list(userId).stream().map(TopicResponse::from).toList();
     }
 
@@ -49,7 +49,7 @@ public class TopicController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TopicResponse create(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @Valid @RequestBody CreateTopicRequest request) {
         return TopicResponse.from(topics.create(userId, request.name()));
     }

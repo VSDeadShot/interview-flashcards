@@ -1,8 +1,10 @@
 package dev.vsdeadshot.flashcards.support;
 
+import dev.vsdeadshot.flashcards.service.TokenService;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -27,7 +29,14 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>One server is shared by the whole test JVM. Tests must therefore leave the database
  * as they found it — the usual way being {@code @Transactional}, which rolls back.
  */
-@SpringBootTest
+// The passphrase hash is supplied as an inlined property rather than through
+// @DynamicPropertySource, and the distinction is load-bearing. Dynamic sources are added ahead
+// of inlined ones, and a base class's are applied *after* a subclass's — so registering it below
+// would silently overwrite the hash that AuthControllerTest, RefreshTokenTest and
+// SignInMalformedHashTest each configure for themselves, and their sign-ins would start
+// answering 401 for a reason nothing in those files mentions. Inlined here, a subclass that
+// needs its own hash simply wins.
+@SpringBootTest(properties = "flashcards.passphrase-hash=" + EmbeddedPostgresTest.TEST_PASSPHRASE_HASH)
 public abstract class EmbeddedPostgresTest {
 
     private static final EmbeddedPostgres POSTGRES = start();
@@ -69,19 +78,47 @@ public abstract class EmbeddedPostgresTest {
         registry.add("spring.datasource.password", () -> "postgres");
     }
 
-    /** The key the whole suite authenticates with. Not a secret — it opens nothing real. */
-    public static final String TEST_API_KEY = "test-api-key";
+    /** The passphrase the suite signs in with. Not a secret — it opens nothing real. */
+    public static final String TEST_PASSPHRASE = "the passphrase this suite uses";
+
+    /**
+     * The hash of {@link #TEST_PASSPHRASE}, at cost 4 rather than the tool's 12.
+     *
+     * <p>A literal rather than computed, because an annotation argument has to be a compile-time
+     * constant and this is consumed by {@code @SpringBootTest} above. Bcrypt carries its own cost
+     * factor, so the server verifies this exactly as it would a real one; 4 keeps the suite's
+     * sign-ins cheap. Note the bare {@code $} sequences are safe here — Spring only expands
+     * {@code ${...}}, which is the half of the shell-mangling problem that does not apply.
+     */
+    public static final String TEST_PASSPHRASE_HASH =
+            "$2a$04$ZKOq13fv4strw3LfpKGAxu.w4pN5lnbx2f/3vQS31jcHYCDsKgiLm";
 
     public static final String TEST_USER_ID = "test-user";
 
     /**
      * Supplies the settings production reads from the environment, for the same reason as the
-     * datasource above: {@code ./gradlew test} must not need {@code FLASHCARDS_API_KEY} set on
-     * the machine, and must never pick up the developer's real key if it happens to be.
+     * datasource above: {@code ./gradlew test} must not need {@code FLASHCARDS_PASSPHRASE_HASH}
+     * set on the machine, and must never pick up the developer's real one if it happens to be.
      */
     @DynamicPropertySource
     static void applicationProperties(DynamicPropertyRegistry registry) {
-        registry.add("flashcards.api-key", () -> TEST_API_KEY);
         registry.add("flashcards.user-id", () -> TEST_USER_ID);
+    }
+
+    @Autowired
+    private TokenService tokenService;
+
+    /**
+     * A freshly issued access token, as an {@code Authorization} header value.
+     *
+     * <p><strong>Minted per call rather than cached.</strong> The obvious optimisation — one
+     * token for the whole JVM — is wrong here for a specific reason: controller tests are
+     * deliberately not {@code @Transactional}, so their rows are committed, and
+     * {@code AuthControllerTest} clears {@code auth_token} in its own cleanup. A cached token
+     * would be revoked out from under whichever class ran next, and the failure would look like
+     * a flaky ordering bug rather than a shared-fixture one. An insert is cheaper than that.
+     */
+    protected String bearer() {
+        return "Bearer " + tokenService.issue(TEST_USER_ID).accessToken();
     }
 }

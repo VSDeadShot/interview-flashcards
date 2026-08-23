@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -80,11 +81,18 @@ class SignInMalformedHashTest extends EmbeddedPostgresTest {
                         + "check a passphrase must not charge anybody for trying");
     }
 
+    /**
+     * A hash nobody can sign in with does not invalidate the tokens already issued. The two are
+     * separate: the hash is consulted only at {@code /auth/login}, and a token is checked
+     * against its own row. So a deployment whose hash was mangled keeps working for anybody
+     * already holding a token, and stops being able to admit anybody new — which is worth
+     * pinning, because it is the shape of the outage and it is not the obvious one.
+     */
     @Test
-    @DisplayName("leaves every other endpoint working on the key")
-    void everythingElseStillWorks() throws Exception {
+    @DisplayName("leaves a token issued earlier still working")
+    void alreadyIssuedTokensStillWork() throws Exception {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/api/v1/topics").header(ApiKeyFilter.HEADER, TEST_API_KEY))
+                        .get("/api/v1/topics").header(HttpHeaders.AUTHORIZATION, bearer()))
                 .andExpect(status().isOk());
     }
 }

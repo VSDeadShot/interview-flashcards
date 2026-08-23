@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -36,8 +37,8 @@ class ApiExceptionHandlerTest extends EmbeddedPostgresTest {
     private MockMvc mvc;
 
     /** Every path here is under {@code /api/}, so the key is what gets past the filter. */
-    private static MockHttpServletRequestBuilder request(String path) {
-        return get(ThrowingController.BASE + path).header(ApiKeyFilter.HEADER, TEST_API_KEY);
+    private MockHttpServletRequestBuilder request(String path) {
+        return get(ThrowingController.BASE + path).header(HttpHeaders.AUTHORIZATION, bearer());
     }
 
     @Nested

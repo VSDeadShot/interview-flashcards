@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -41,7 +42,7 @@ class HealthControllerTest extends EmbeddedPostgresTest {
     @Test
     @DisplayName("answers the same when a key is presented, rather than treating one specially")
     void aKeyChangesNothing() throws Exception {
-        mvc.perform(get("/health").header(ApiKeyFilter.HEADER, TEST_API_KEY))
+        mvc.perform(get("/health").header(HttpHeaders.AUTHORIZATION, bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
     }

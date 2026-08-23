@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -80,15 +81,15 @@ class StudyControllerTest extends EmbeddedPostgresTest {
         topicRepository.deleteAll();
     }
 
-    private static String reviewPath(long cardId) {
+    private String reviewPath(long cardId) {
         return "/api/v1/study/" + cardId + "/review";
     }
 
-    private static MockHttpServletRequestBuilder authorised(MockHttpServletRequestBuilder request) {
-        return request.header(ApiKeyFilter.HEADER, TEST_API_KEY);
+    private MockHttpServletRequestBuilder authorised(MockHttpServletRequestBuilder request) {
+        return request.header(HttpHeaders.AUTHORIZATION, bearer());
     }
 
-    private static MockHttpServletRequestBuilder review(long cardId, String body) {
+    private MockHttpServletRequestBuilder review(long cardId, String body) {
         return authorised(post(reviewPath(cardId)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body);

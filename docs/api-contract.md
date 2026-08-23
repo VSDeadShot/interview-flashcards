@@ -11,7 +11,7 @@ reference the Spring Boot backend and the Android client are both written agains
 | Test database | `zonky` embedded Postgres | No Docker on this machine, so Testcontainers is out. `io.zonky.test:embedded-postgres` runs a real Postgres binary in-process — tests hit actual Postgres, not an H2 emulation, so no dialect divergence between test and production. |
 | Scheduling state | Stored on `card` | Cards are user-authored, so card and its schedule are 1:1 per user. No join, no derivation. |
 | Review history | Append-only `review_log` | Kept for stats and streaks. **Never read to compute the next schedule.** |
-| Auth | `Authorization: Bearer`, with `X-API-Key` still accepted | Opaque tokens issued against a bcrypt-hashed passphrase, stored as a SHA-256 digest and revocable. The shared key is being retired because a client build that carries one publishes it. Every table carries `user_id` from day one, so the token filter publishes the same owner attribute the key filter did and nothing downstream changed. |
+| Auth | `Authorization: Bearer` | Opaque tokens issued against a bcrypt-hashed passphrase, stored as a SHA-256 digest and revocable. The shared API key is **gone**: a client build carrying one publishes it, it could not be revoked without shipping another build, and it identified nobody. Every table carries `user_id` from day one, so the token filter publishes the same owner attribute the key filter did and nothing downstream ever changed. |
 | Confidence scale | 1–5 | Matches DSA Tracker. `confidence < 3` is a lapse. |
 
 ### Deliberate divergence from DSA Tracker
@@ -159,10 +159,10 @@ Confidence 4 leaves EF untouched: `0.1 - 1 * (0.08 + 1 * 0.02) = 0`.
 
 ## Endpoints
 
-Base path `/api/v1`. Every request under it must authenticate, either with `X-API-Key` or
-with `Authorization: Bearer <token>` — see [Authentication](#authentication). Missing or
-rejected credentials return `401` with no body. Two routes are exempt: `POST /api/v1/auth/login`,
-because it is how a credential is obtained, and `GET /health`, which sits outside the base
+Base path `/api/v1`. Every request under it must authenticate with
+`Authorization: Bearer <token>` — see [Authentication](#authentication). Missing, malformed and
+rejected credentials all return `401` with no body. Two exemptions: the `/api/v1/auth/` routes,
+because they are how a credential is obtained, and `GET /health`, which sits outside the base
 path — see [Health](#health).
 
 | Method | Path | Body | Returns |
@@ -183,12 +183,23 @@ path — see [Health](#health).
 
 ### Authentication
 
-Two credentials are accepted, deliberately, while the client migrates from one to the other.
+One credential: a bearer token, obtained by signing in with a passphrase.
 
 | Credential | Header | Status |
 |---|---|---|
-| Shared API key | `X-API-Key: <key>` | Being retired. Extractable from any client build that carries it. |
-| Bearer token | `Authorization: Bearer <token>` | The replacement. Obtained by signing in, expires on its own, revocable. |
+| Bearer token | `Authorization: Bearer <token>` | The only one. Obtained by signing in, expires on its own, revocable. |
+
+**`X-API-Key` is gone and is no longer read.** A request presenting it and nothing else gets a
+plain `401`, the same as a request presenting nothing — the header is not consulted, so there is
+no sense in which it was considered and rejected. It was removed because a static secret every
+client build had to carry is extractable by anyone holding a build, cannot be withdrawn without
+shipping another, and says nothing about who is calling.
+
+**A request with no `Authorization` header is refused rather than passed on.** While both
+credentials existed, a request carrying no bearer token was simply not addressed to the token
+filter and fell through to be judged by the key filter. With nothing behind it, falling through
+would mean serving an unauthenticated request, so the absent header and the bad one now answer
+identically.
 
 `POST /api/v1/auth/login` — `{passphrase}` → `200 {accessToken, expiresIn, refreshToken, refreshExpiresIn}`.
 
@@ -209,8 +220,9 @@ Two credentials are accepted, deliberately, while the client migrates from one t
   the caller's, and indistinguishable from a wrong guess. A malformed hash now reads as absent,
   logs a warning at startup, and consumes none of the sign-in allowance. Not `401`: the caller's credentials were
   never consulted, and saying they were sends them hunting a fault on their own side. Sign-in is
-  a capability while the API key still works, the same way generation is a capability without a
-  Gemini key.
+  **required**: it is the only way to obtain the only credential, so an instance without one can
+  serve nothing and refuses to start rather than reporting it one sign-in at a time. This is the
+  one place the posture differs from generation, which stays optional without a Gemini key.
 
 `expiresIn` is **seconds remaining**, not an absolute instant, so a client with a wrong clock
 still counts down correctly — which this API already assumes is possible, since it accepts
@@ -238,7 +250,7 @@ documented or reported — a caller told what it is has been told how much room 
 
 Access tokens last **one hour**; refresh tokens **thirty days**. The long life is affordable only
 because using a refresh token replaces it — a long-lived credential that stayed valid after use
-would be the API key again with extra steps.
+would be the retired API key again with extra steps.
 
 `POST /api/v1/auth/refresh` — `{refreshToken}` → the same shape, with **both halves new**. The
 presented token is rotated in the same transaction that issues its successor, so there is no

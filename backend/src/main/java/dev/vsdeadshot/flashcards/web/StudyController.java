@@ -43,7 +43,7 @@ public class StudyController {
      */
     @GetMapping("/queue")
     public List<CardResponse> queue(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @RequestParam(defaultValue = "" + StudyService.DEFAULT_LIMIT) int limit) {
         return study.queue(userId, limit).stream().map(CardResponse::from).toList();
     }
@@ -59,7 +59,7 @@ public class StudyController {
      */
     @PostMapping("/{cardId}/review")
     public CardResponse review(
-            @RequestAttribute(ApiKeyFilter.USER_ID_ATTRIBUTE) String userId,
+            @RequestAttribute(AuthTokenFilter.USER_ID_ATTRIBUTE) String userId,
             @PathVariable long cardId,
             @Valid @RequestBody ReviewRequest request) {
         return CardResponse.from(study.review(

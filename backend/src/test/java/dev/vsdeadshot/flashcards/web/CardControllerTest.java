@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
@@ -87,11 +88,11 @@ class CardControllerTest extends EmbeddedPostgresTest {
         topicRepository.deleteAll();
     }
 
-    private static MockHttpServletRequestBuilder authorised(MockHttpServletRequestBuilder request) {
-        return request.header(ApiKeyFilter.HEADER, TEST_API_KEY);
+    private MockHttpServletRequestBuilder authorised(MockHttpServletRequestBuilder request) {
+        return request.header(HttpHeaders.AUTHORIZATION, bearer());
     }
 
-    private static MockHttpServletRequestBuilder json(
+    private MockHttpServletRequestBuilder json(
             MockHttpServletRequestBuilder request, String body) {
         return authorised(request).contentType(MediaType.APPLICATION_JSON).content(body);
     }
