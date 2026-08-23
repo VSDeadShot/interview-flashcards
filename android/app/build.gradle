@@ -135,13 +135,17 @@ android {
 
     buildTypes {
         release {
-            // Still off, and deliberately not switched on in the same change as signing. Moshi
-            // reads the DTOs reflectively — they are plain Java classes with no codegen — so R8
-            // renaming a field is the difference between `accessToken` and `a`, and every
-            // response silently stops parsing. Room's entities and the Retrofit interface have
-            // the same exposure. None of it is caught by the unit tests, which never run R8, so
-            // turning this on needs keep rules and a run on a device, which is its own change.
-            minifyEnabled false
+            // On, with the keep rules in proguard-rules.pro. The rule that matters is the one
+            // covering data.remote.dto: Moshi reads those classes reflectively and their field
+            // names are the JSON contract, and neither Moshi's nor Retrofit's consumer rules
+            // protect them. Read that file before changing anything here.
+            //
+            // shrinkResources is deliberately NOT enabled alongside this. It is the natural
+            // companion and a separate variable; turning both on at once would leave a failure
+            // with two candidate causes.
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
 
             // Conditional, so a clone without a keystore still produces a release APK — unsigned,
             // which is honest, rather than failing the build for want of a key it was never

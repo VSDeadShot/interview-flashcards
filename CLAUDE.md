@@ -366,6 +366,49 @@ it buys no exhaustiveness check, because `:app` compiles at **Java 17** where pa
 bytecode while the backend is Java 21, so language features do not transfer between the halves
 even though both are Java.
 
+### The release build
+
+**Signed with an upload key held outside the repository.** `keystore.properties` is gitignored and
+read at build time; the keystore itself lives outside the working tree, because a file that is not
+in the tree cannot be committed by a `git add -f` or a later edit to `.gitignore`. **Absent
+configuration is not an error** — without that file the release build produces an *unsigned* APK
+rather than failing, which keeps a fresh clone buildable by somebody who has no key. The two
+half-configured states are what fail loudly, naming the file to edit: blank passwords, and a
+`storeFile` that does not exist.
+
+v1 signing is off (API 24+ only, and `minSdk` is 26). **v3 is on, and that one matters**: it is the
+only scheme carrying a proof-of-rotation lineage, and the lineage has to be signed by the key being
+rotated away from — so a build shipped without v3 can never rotate its key.
+
+**`minifyEnabled true`, and the keep rules in `app/proguard-rules.pro` are the load-bearing part.**
+Most dependencies here ship consumer rules that are applied automatically — Moshi, Retrofit, Room,
+WorkManager and navigation-fragment all do — so the file holds only what those provably do not
+cover. Read it before adding anything.
+
+The rule the whole thing exists for is `data.remote.dto`. Moshi reads those classes reflectively,
+their field names *are* the JSON contract, and neither Moshi's rules (which cover `@JsonClass`
+enums and `@FromJson` methods) nor Retrofit's (which keep the classes `allowobfuscation`, so
+fields still rename) protect them. Without it R8 renames `accessToken` to `a`, Moshi finds no such
+field, and **every response silently parses as nulls with nothing throwing at the point of
+failure**.
+
+Two rules were tried and removed after testing, which is why they are absent rather than
+forgotten. **Fragments need none**: AAPT2 generates keep rules from resources and that provably
+includes `android:name` on a navigation `<fragment>` — the generated `aapt_rules.txt` names all
+five. **Room entities need none**: Room generates real Java that reads fields directly, so R8
+renames accessor and field together, and the reflective half is covered by room-runtime's own
+rules.
+
+**Nothing in the test suite exercises any of this.** Unit tests run on the JVM and never invoke
+R8, so a green `./gradlew build` is no evidence at all. Every assurance comes from the release APK
+on a device: the verified run is a cold launch, sign-in, sync, answering a card, all three tabs,
+sign-out and sign-in again — which covers every DTO in both directions, all four view models,
+every fragment and WorkManager. `shrinkResources` is deliberately not enabled; it is a separate
+variable and would leave a failure with two candidate causes.
+
+`mapping.txt` lands in `app/build/outputs/mapping/release/`. Without it a release stack trace is
+unreadable, so keep the one matching anything actually distributed.
+
 ### Android tests
 
 `FlashcardsDatabaseTest` runs real SQLite in memory under Robolectric — the same reasoning as the backend running real Postgres rather than H2. `robolectric.properties` pins `sdk=35` because Robolectric 4.15.1 ships no image above it while the app targets 36; that is pinned rather than lowering `targetSdk`, which would change what the app is to suit a test tool.
