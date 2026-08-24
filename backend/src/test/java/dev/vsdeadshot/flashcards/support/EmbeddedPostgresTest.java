@@ -29,14 +29,24 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>One server is shared by the whole test JVM. Tests must therefore leave the database
  * as they found it — the usual way being {@code @Transactional}, which rolls back.
  */
-// The passphrase hash is supplied as an inlined property rather than through
-// @DynamicPropertySource, and the distinction is load-bearing. Dynamic sources are added ahead
-// of inlined ones, and a base class's are applied *after* a subclass's — so registering it below
-// would silently overwrite the hash that AuthControllerTest, RefreshTokenTest and
-// SignInMalformedHashTest each configure for themselves, and their sign-ins would start
-// answering 401 for a reason nothing in those files mentions. Inlined here, a subclass that
-// needs its own hash simply wins.
-@SpringBootTest(properties = "flashcards.passphrase-hash=" + EmbeddedPostgresTest.TEST_PASSPHRASE_HASH)
+// Both settings are supplied as inlined properties rather than through @DynamicPropertySource,
+// and the distinction is load-bearing. Dynamic sources are added ahead of inlined ones, and a
+// base class's are applied *after* a subclass's — so registering the hash below would silently
+// overwrite the one that AuthControllerTest, RefreshTokenTest and SignInMalformedHashTest each
+// configure for themselves, and their sign-ins would start answering 401 for a reason nothing in
+// those files mentions. Inlined here, a subclass that needs its own value simply wins.
+//
+// The Gemini key is *cleared* rather than left to chance, for the same reason the datasource and
+// the passphrase hash are overridden below: a test must not read the developer's real
+// configuration, whether to depend on it or to trip over it. Inlined properties outrank the OS
+// environment, so an exported FLASHCARDS_GEMINI_API_KEY reaches nothing that extends this class.
+// It sits here rather than on the one class that asserts on it because the exposure is wider than
+// that assertion: with a key bound, the container wires a real GeminiRestClient into every context
+// this base class starts, and anything that ever reached it would spend real quota.
+@SpringBootTest(properties = {
+        "flashcards.passphrase-hash=" + EmbeddedPostgresTest.TEST_PASSPHRASE_HASH,
+        "flashcards.gemini.api-key="
+})
 public abstract class EmbeddedPostgresTest {
 
     private static final EmbeddedPostgres POSTGRES = start();
