@@ -77,7 +77,7 @@ public class GeminiRestClient implements GeminiClient {
     private Map<String, Object> request(GenerationPrompt prompt) {
         return Map.of(
                 "model", model,
-                "input", instructions(prompt),
+                "input", GenerationInstructions.build(prompt, GenerationInstructions.nonce()),
                 "response_format", Map.of(
                         "type", "text",
                         "mime_type", "application/json",
@@ -96,22 +96,6 @@ public class GeminiRestClient implements GeminiClient {
                 "type", "object",
                 "properties", Map.of("cards", Map.of("type", "array", "items", card)),
                 "required", List.of("cards"));
-    }
-
-    private static String instructions(GenerationPrompt prompt) {
-        StringBuilder text = new StringBuilder()
-                .append("Write ").append(prompt.count())
-                .append(" flashcards for a software engineering interview candidate revising ")
-                .append(prompt.topicName()).append(".");
-        if (prompt.focus() != null && !prompt.focus().isBlank()) {
-            text.append(" Focus narrowly on: ").append(prompt.focus()).append(".");
-        }
-        text.append(" The front is a question; the back is a complete but concise answer.");
-        if (!prompt.avoid().isEmpty()) {
-            text.append(" Do not repeat or paraphrase any of these existing questions: ");
-            text.append(String.join(" | ", prompt.avoid()));
-        }
-        return text.toString();
     }
 
     /**
