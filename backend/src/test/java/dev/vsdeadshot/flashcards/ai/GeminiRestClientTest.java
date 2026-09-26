@@ -272,5 +272,28 @@ class GeminiRestClientTest {
             assertTrue(thrown.getMessage().startsWith("The card generator"),
                     "the message should describe the generator, not the transport");
         }
+
+        /**
+         * A rejection reaches the phone as a bodyless 500, so this log line is the only place a
+         * wrong key and a retired model can be told apart. The message quotes the key here only
+         * to prove it would be scrubbed if Gemini ever did.
+         */
+        @Test
+        @DisplayName("summarises a rejection by Gemini's own status and reason, never the key")
+        void failureSummaryNamesTheCauseWithoutTheKey() {
+            String summary = GeminiRestClient.failureSummary(400, "gemini-3.6-flash",
+                    error(400, "INVALID_ARGUMENT", "API_KEY_INVALID",
+                            "API key not valid: test-key"),
+                    "test-key");
+
+            assertTrue(summary.contains("status=400"), "the HTTP status should be named");
+            assertTrue(summary.contains("model=gemini-3.6-flash"), "the model should be named");
+            assertTrue(summary.contains("error.status=INVALID_ARGUMENT"),
+                    "Gemini's own status should be read out of the array-wrapped body");
+            assertTrue(summary.contains("reason=API_KEY_INVALID"),
+                    "the precise reason should be read from the error details");
+            assertTrue(summary.contains("API key not valid"), "Gemini's message should be kept");
+            assertFalse(summary.contains("test-key"), "the key must never reach a log");
+        }
     }
 }

@@ -5,8 +5,11 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -27,7 +30,13 @@ public class GeminiRestClient implements GeminiClient {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    private static final Logger log = LoggerFactory.getLogger(GeminiRestClient.class);
+
+    /** Enough of Gemini's message to name the fault, not enough to carry a prompt with it. */
+    static final int MAX_LOGGED_MESSAGE = 300;
+
     private final RestClient http;
+    private final String apiKey;
     private final String model;
 
     /**
@@ -40,6 +49,7 @@ public class GeminiRestClient implements GeminiClient {
      */
     public GeminiRestClient(RestClient.Builder builder, String apiKey, String model) {
         this.http = builder.defaultHeader("x-goog-api-key", apiKey).build();
+        this.apiKey = apiKey;
         this.model = model;
     }
 
@@ -56,6 +66,7 @@ public class GeminiRestClient implements GeminiClient {
         } catch (HttpClientErrorException.TooManyRequests e) {
             // The one 4xx that is a bad moment rather than a bad request. Caught before the
             // block below, which would otherwise call a rate limit permanent.
+            log.warn("Gemini rate-limited the request: {}", describe(e));
             throw new GenerationUnavailableException("The card generator did not answer.");
         } catch (HttpClientErrorException e) {
             // Every other 4xx means this request was wrong, and nobody holding the phone can
@@ -64,14 +75,79 @@ public class GeminiRestClient implements GeminiClient {
             // 400 INVALID_ARGUMENT, not 401, so keying this on 401/403 alone reported the most
             // likely misconfiguration there is as a temporary outage and invited retries for as
             // long as the key stayed wrong.
+            //
+            // ERROR, and the only place Gemini's own reason is recorded: this becomes a bodyless
+            // 500, so without this line a wrong key and a retired model look identical.
+            log.error("Gemini rejected the request: {}", describe(e));
             throw new GenerationMisconfiguredException(
                     "The card generator rejected our request.");
+        } catch (HttpStatusCodeException e) {
+            // A 5xx: the same answer to the caller as no answer at all, but worth its status.
+            log.warn("Gemini failed: {}", describe(e));
+            throw new GenerationUnavailableException("The card generator did not answer.");
         } catch (RestClientException e) {
             // Deliberately drops the cause's message: an upstream body can echo request content,
-            // and this message reaches a log.
+            // and this message reaches a log. The type alone says timeout versus refused.
+            log.warn("Gemini did not answer: model={} cause={}", model,
+                    e.getClass().getSimpleName());
             throw new GenerationUnavailableException("The card generator did not answer.");
         }
         return parse(body);
+    }
+
+    private String describe(HttpStatusCodeException e) {
+        return failureSummary(
+                e.getStatusCode().value(), model, e.getResponseBodyAsString(), apiKey);
+    }
+
+    /**
+     * One log line naming why Gemini refused, built from named fields and never the raw body.
+     *
+     * <p>The body is not logged as-is for the reason the exception's message is dropped: it can
+     * echo what was sent, and what was sent is the prompt. {@code error.message} is the one free
+     * text field kept, so it is truncated, stripped of line breaks that would forge a second log
+     * line, and scrubbed of the key on the chance an error ever quotes it back. An unreadable
+     * body leaves the fields absent rather than falling back to printing it.
+     *
+     * <p>Reads both shapes: the live endpoint wraps its error object in a JSON array.
+     */
+    static String failureSummary(int status, String model, String body, String apiKey) {
+        String geminiStatus = null;
+        String reason = null;
+        String message = null;
+        try {
+            JsonNode root = JSON.readTree(body);
+            JsonNode error = (root.isArray() ? root.path(0) : root).path("error");
+            geminiStatus = string(error.path("status"));
+            message = string(error.path("message"));
+            for (JsonNode detail : error.path("details")) {
+                reason = string(detail.path("reason"));
+                if (reason != null) {
+                    break;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Nothing readable; the HTTP status and model still go out.
+        }
+        return "status=" + status + " model=" + model + " error.status=" + geminiStatus
+                + " reason=" + reason + " message=" + scrub(message, apiKey);
+    }
+
+    private static String string(JsonNode node) {
+        return node.isString() ? node.asString() : null;
+    }
+
+    private static String scrub(String message, String apiKey) {
+        if (message == null) {
+            return null;
+        }
+        String clean = message.replaceAll("\\p{Cntrl}", " ");
+        if (apiKey != null && !apiKey.isBlank()) {
+            clean = clean.replace(apiKey, "[redacted]");
+        }
+        return clean.length() <= MAX_LOGGED_MESSAGE
+                ? clean
+                : clean.substring(0, MAX_LOGGED_MESSAGE) + "...";
     }
 
     private Map<String, Object> request(GenerationPrompt prompt) {
