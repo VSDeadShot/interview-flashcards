@@ -2,6 +2,7 @@ package dev.vsdeadshot.flashcards.web;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -59,6 +60,24 @@ class SignInMalformedHashTest extends EmbeddedPostgresTest {
                         .content("{\"passphrase\":\"anything at all\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.title").value("Sign-in unavailable"));
+    }
+
+    /**
+     * The Android client reads a {@code 503} <em>without</em> a problem body as Render's router
+     * answering while the instance wakes, and one <em>with</em> a body as this application
+     * speaking. That rule holds only while every {@code 503} this application sends carries one,
+     * so the body is pinned here rather than assumed from the handler returning a
+     * {@code ProblemDetail}.
+     */
+    @Test
+    @DisplayName("answers its 503 with a problem body, so it cannot pass for a gateway error")
+    void unavailableCarriesAProblemBody() throws Exception {
+        mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"passphrase\":\"anything at all\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(503));
     }
 
     /**

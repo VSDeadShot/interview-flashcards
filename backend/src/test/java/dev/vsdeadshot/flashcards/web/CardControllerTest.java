@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.vsdeadshot.flashcards.domain.Card;
 import dev.vsdeadshot.flashcards.domain.Topic;
 import dev.vsdeadshot.flashcards.repository.CardRepository;
+import dev.vsdeadshot.flashcards.repository.GenerationRequestRepository;
 import dev.vsdeadshot.flashcards.repository.ReviewLogRepository;
 import dev.vsdeadshot.flashcards.repository.TopicRepository;
 import dev.vsdeadshot.flashcards.service.CardService;
@@ -73,6 +74,9 @@ class CardControllerTest extends EmbeddedPostgresTest {
     @Autowired
     private ReviewLogRepository reviewLogRepository;
 
+    @Autowired
+    private GenerationRequestRepository generationRequestRepository;
+
     private Topic operatingSystems;
 
     @BeforeEach
@@ -80,9 +84,13 @@ class CardControllerTest extends EmbeddedPostgresTest {
         operatingSystems = topics.create(TEST_USER_ID, "Operating Systems");
     }
 
-    /** In dependency order: logs reference cards, cards reference topics. */
+    /**
+     * In dependency order: logs reference cards, cards reference topics. A generation attempt
+     * is counted before the generator is asked, so even a refused one leaves a row.
+     */
     @AfterEach
     void clean() {
+        generationRequestRepository.deleteAll();
         reviewLogRepository.deleteAll();
         cardRepository.deleteAll();
         topicRepository.deleteAll();
@@ -397,6 +405,33 @@ class CardControllerTest extends EmbeddedPostgresTest {
             return """
                     {"topicId": %d, "front": "front", "back": "back", "clientCardId": "%s"}"""
                     .formatted(operatingSystems.getId(), key);
+        }
+    }
+
+    /**
+     * The suite runs with no Gemini key, so this is the unconfigured generator's {@code 503} —
+     * the same handler, and the same shape, as an upstream that did not answer.
+     */
+    @Nested
+    @DisplayName("POST /cards/generate")
+    class Generate {
+
+        /**
+         * The Android client reads a {@code 503} <em>without</em> a problem body as Render's
+         * router answering while the instance wakes, and one <em>with</em> a body as this
+         * application speaking. That rule holds only while every {@code 503} this application
+         * sends carries one, so the body is pinned here rather than assumed.
+         */
+        @Test
+        @DisplayName("answers its 503 with a problem body, so it cannot pass for a gateway error")
+        void unavailableCarriesAProblemBody() throws Exception {
+            mvc.perform(json(post(PATH + "/generate"),
+                            "{\"topicId\": %d}".formatted(operatingSystems.getId())))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(content().contentTypeCompatibleWith(
+                            MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.status").value(503))
+                    .andExpect(jsonPath("$.title").value("Generation unavailable"));
         }
     }
 
