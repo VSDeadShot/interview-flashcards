@@ -34,7 +34,8 @@ card's schedule.
 
 PostgreSQL 18.6 in production (Neon), 17 locally and in tests. All tables carry
 `user_id` (currently always the single configured user). Timestamps are
-`timestamptz`; `due_date` is a plain `date` — see [Timezone](#timezone) for which day that date is measured against.
+`timestamptz`; `due_date` is a plain `date` — see [Timezone](#timezone) for which
+day that date is measured against.
 
 ### `topic`
 | Column | Type | Notes |
