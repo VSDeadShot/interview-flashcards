@@ -7,8 +7,8 @@ reference the Spring Boot backend and the Android client are both written agains
 
 | Decision | Choice | Why |
 |---|---|---|
-| Database | PostgreSQL 17 | Real server, running locally on `127.0.0.1:5432`. Schema managed by Flyway. |
-| Test database | `zonky` embedded Postgres | No Docker on this machine, so Testcontainers is out. `io.zonky.test:embedded-postgres` runs a real Postgres binary in-process — tests hit actual Postgres, not an H2 emulation, so no dialect divergence between test and production. |
+| Database | PostgreSQL — **18.6 on Neon** in production, 17 locally | Production is Neon's managed 18.6; development runs a real 17 server on `127.0.0.1:5432`. Schema managed by Flyway. The major-version gap is recorded in `CLAUDE.md` under *The version gap*. |
+| Test database | `zonky` embedded Postgres 17.5 | No Docker on this machine, so Testcontainers is out. `io.zonky.test:embedded-postgres` runs a real Postgres binary in-process — tests hit actual Postgres, not an H2 emulation. It is 17, one major version behind production. |
 | Scheduling state | Stored on `card` | Cards are user-authored, so card and its schedule are 1:1 per user. No join, no derivation. |
 | Review history | Append-only `review_log` | Kept for stats and streaks. **Never read to compute the next schedule.** |
 | Auth | `Authorization: Bearer` | Opaque tokens issued against a bcrypt-hashed passphrase, stored as a SHA-256 digest and revocable. The shared API key is **gone**: a client build carrying one publishes it, it could not be revoked without shipping another build, and it identified nobody. Every table carries `user_id` from day one, so the token filter publishes the same owner attribute the key filter did and nothing downstream ever changed. |
@@ -32,9 +32,9 @@ card's schedule.
 
 ## Schema
 
-PostgreSQL 17. All tables carry `user_id` (currently always the single configured
-user). Timestamps are `timestamptz`; `due_date` is a plain `date` — see
-[Timezone](#timezone) for which day that date is measured against.
+PostgreSQL 18.6 in production (Neon), 17 locally and in tests. All tables carry
+`user_id` (currently always the single configured user). Timestamps are
+`timestamptz`; `due_date` is a plain `date` — see [Timezone](#timezone) for which day that date is measured against.
 
 ### `topic`
 | Column | Type | Notes |

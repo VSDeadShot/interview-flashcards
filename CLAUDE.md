@@ -36,6 +36,8 @@ It also **binds `127.0.0.1` rather than every interface** (`server.address`). On
 
 That database server should listen on loopback only (`listen_addresses = 'localhost'`). `pg_hba.conf` is what actually refuses a remote login — it permits `127.0.0.1/32` and `::1/128` under `scram-sha-256` and nothing else — and that was verified rather than assumed: a connection from the machine’s own LAN address completed the TCP handshake and was then refused with *no pg_hba.conf entry*. Narrowing `listen_addresses` removes the pre-auth surface sitting behind that check, which is the half a host-based rule cannot cover.
 
+**The deployed database is not on Render.** Since 2026-09-25 it is Neon — PostgreSQL 18.6, AWS US West 2 (Oregon) — after Render suspended its free-tier database and every daily cold start crashed with `UnknownHostException` resolving a host that no longer existed. The backend uses Neon's **direct, non-pooled** endpoint with `sslmode=require`. The string Neon's console hands out is libpq-style, not JDBC: the configured URL needs the `jdbc:` prefix and must not carry `channel_binding`. Nothing seeds a fresh database; topics exist only once somebody `POST`s them to `/api/v1/topics`. `docs/DECISIONS.md` records all of this.
+
 `./gradlew test` needs none of that. Tests start their own Postgres (see below).
 
 From `android/`:
@@ -61,7 +63,7 @@ flashcards.baseUrl=http://10.0.2.2:8080/api/v1/
 
 ## Backend architecture
 
-**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17 locally and in tests — **18.4 on Render**, see [The version gap](#the-version-gap) — JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
+**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17 locally and in tests — **18.6 on Neon** in production, see [The version gap](#the-version-gap) — JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
 
 **Spring Boot 4 renamed the starters.** It is `spring-boot-starter-webmvc`, not `-web`, and the test starter is split per module — `spring-boot-starter-data-jpa-test`, `-webmvc-test`, `-flyway-test`, `-validation-test` — rather than one `spring-boot-starter-test`. Copying dependency snippets from Boot 3 documentation or older answers will not resolve. Tests use plain JUnit `Assertions`; AssertJ is not on the classpath.
 
@@ -136,15 +138,17 @@ Cards are ordered `dueDate, id`; the `id` tiebreak keeps same-day cards in a sta
 
 **There is no Docker on this machine**, so Testcontainers is not an option. `support/EmbeddedPostgresTest` starts a real PostgreSQL 17 in-process via `io.zonky.test:embedded-postgres` and overrides the datasource with `@DynamicPropertySource`. Extend it for anything needing a database.
 
-This matters beyond convenience: an in-memory stand-in like H2 would quietly accept things real Postgres rejects, and this schema leans on `timestamptz`, identity columns, and a partial index. The embedded binaries are Postgres 17, matching the development server.
+This matters beyond convenience: an in-memory stand-in like H2 would quietly accept things real Postgres rejects, and this schema leans on `timestamptz`, identity columns, and a partial index. The embedded binaries are Postgres 17.5 (the `embedded-postgres-binaries-bom` pin in `build.gradle`), the same major version as the development server's 17.10.
 
 #### The version gap
 
-**They no longer match production.** Render's managed instance is **PostgreSQL 18.4**; local, the embedded test binaries, and every version claim in `docs/api-contract.md` are 17. This was found on 2026-08-23 while seeding the deployed database, not by anything failing.
+**They do not match production.** Production is Neon's **PostgreSQL 18.6**; the development server is 17.10 and the test binaries are Zonky 17.5.0. The gap was first found on 2026-08-23 against Render's 18.4 and carried over to Neon.
 
-Nothing is known to be broken by it, and the migrations applied cleanly from nothing on 18.4 — which is the part that would have failed loudest. But the sentence this replaced used to say there was *no* dialect gap between test and production, and that is now simply untrue: the suite proves the schema against a different major version than the one serving requests. `V1__init.sql`'s `check` constraints, the partial `idx_card_due`, and `existsCardDueOn`'s native `order by … limit 1` subquery are the places where a difference would actually show, and none of them is exercised against 18 by anything.
+**The migrations are safe across it.** They use nothing newer than identity columns, `timestamptz`, `check` constraints, a partial index and `gen_random_uuid()` — all stable since PostgreSQL 13 — and all six have applied cleanly from nothing on both 18.4 and 18.6.
 
-The honest options are to move the Zonky binaries to 18 and match, or to pin Render to 17 and match the other way. Deliberately neither yet — this is recorded so the choice is made on purpose rather than discovered during an incident.
+**The residual risk is query-plan behaviour.** `CardRepositoryTest.Index` proves the study queue uses `idx_card_due` by reading a 17 planner's `EXPLAIN`, and `existsCardDueOn`'s native `order by … limit 1` subquery has only ever run on 17. Neither is known to differ on 18; neither is checked against it.
+
+A possible future fix is bumping the Zonky binaries to 18.x. **Not done.**
 
 Consequences worth knowing:
 
