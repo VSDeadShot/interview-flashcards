@@ -44,22 +44,33 @@ public final class ApiException extends IOException {
     private final int status;
     private final String detail;
     private final Boolean retryable;
+    private final boolean problem;
 
-    ApiException(int status, String detail, Boolean retryable) {
+    private ApiException(int status, String detail, Boolean retryable, boolean problem) {
         super(status + (detail == null ? "" : " " + detail));
         this.status = status;
         this.detail = detail;
         this.retryable = retryable;
+        this.problem = problem;
     }
 
     static ApiException from(int status, ProblemDetail problem) {
         return problem == null
-                ? new ApiException(status, null, null)
-                : new ApiException(status, problem.detail, problem.retryable);
+                ? new ApiException(status, null, null, false)
+                : new ApiException(status, problem.detail, problem.retryable, true);
     }
 
     public int status() {
         return status;
+    }
+
+    /**
+     * Whether the response carried a problem body. Every error the backend itself sends does,
+     * except its deliberately bodyless {@code 401} and {@code 500}, so for a {@code 503} this
+     * is what tells the backend speaking from the platform's router answering on its behalf.
+     */
+    public boolean hasProblem() {
+        return problem;
     }
 
     /** The server's explanation, or null if it did not give a parseable one. */

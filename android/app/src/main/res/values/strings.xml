@@ -27,10 +27,10 @@
          of it reads as a choice rather than a retreat. -->
     <string name="auth_offline_note">You do not have to sign in to use the app. Studying, writing and editing all work from this device; only syncing needs a connection to the server.</string>
 
-    <!-- Five failures a person can act on differently: retype it, wait a few minutes, wait for
-         someone to configure the server, turn the radio on, or try later. A single "sign-in
-         failed" would answer none of them — and the server one especially, because no amount of
-         retyping will ever fix it. -->
+    <!-- Failures a person can act on differently: retype it, wait a few minutes, wait for
+         someone to configure the server, turn the radio on, wait for the server to wake, or try
+         later. A single "sign-in failed" would answer none of them — and the server one
+         especially, because no amount of retyping will ever fix it. -->
     <string name="auth_error_empty">Type your passphrase first.</string>
     <string name="auth_error_refused">That passphrase was not accepted.</string>
     <!-- Deliberately vague about how long. The server counts failures over a rolling fifteen
@@ -39,8 +39,16 @@
     <!-- Not a wrong passphrase and not a passing outage: the server has no passphrase set, so
          nothing typed here will work until somebody configures one. -->
     <string name="auth_error_unavailable">Signing in is not set up on the server yet. Nothing you type here will work until it is.</string>
-    <string name="auth_error_offline">Signing in needs a connection.</string>
+    <string name="auth_error_offline">No connection. Signing in needs the internet.</string>
     <string name="auth_error_server">The server could not sign you in. Try again later.</string>
+    <!-- Not "offline": the device reached the server and the server was slow to answer. A
+         Render instance idle long enough to be put to sleep takes about two minutes to wake,
+         longer than this client waits, and that used to be reported as a missing connection on
+         a device that was online the whole time. -->
+    <string name="auth_error_slow">The server is taking a while to answer. If it has been idle it can need a couple of minutes to wake up — try again shortly.</string>
+    <!-- The exchange started and went wrong some other way, such as an answer with nothing in
+         it. Neither the device's connection nor anything the person typed. -->
+    <string name="auth_error_broken">Something went wrong talking to the server. Try again.</string>
 
     <!-- The strip above the content. It is the only place a dead session surfaces on its own —
          a background sync cannot report one through WorkManager, so this reads the store. -->
@@ -192,19 +200,27 @@ Fix it and save to try again.</string>
     <string name="generate_focus">Focus (optional)</string>
     <string name="generate_count">How many</string>
     <string name="generate_go">Generate</string>
-    <!-- Four failures a person can tell apart and act on differently: wait, change the focus,
-         turn the radio on, or stop trying and go and fix the server. A single "generation
-         failed" would answer none of them, and the last one is the reason this is not three:
-         advising a retry for a wrong key invites it forever. -->
+    <!-- Failures a person can tell apart and act on differently: wait, change the focus, turn
+         the radio on, sync, or stop trying and go and fix the server. A single "generation
+         failed" would answer none of them, and the last one especially: advising a retry for a
+         wrong key invites it forever. -->
     <string name="generate_error_busy">The card generator is busy. Try again shortly.</string>
     <string name="generate_error_refused">The generator had nothing to add for that. Try a different focus.</string>
-    <string name="generate_error_offline">Generating needs a connection.</string>
+    <string name="generate_error_offline">No connection. Generating needs the internet.</string>
     <string name="generate_error_misconfigured">Card generation is not set up correctly on the server. Retrying will not help.</string>
     <!-- A fifth failure, and the reason it is not folded into "busy": that one says try again
          shortly, and shortly is wrong. The daily allowance exists so generating cannot run up an
          unbounded bill, and it comes back at midnight rather than in a moment. Saying tomorrow is
          what stops somebody retrying all evening. -->
     <string name="generate_error_limit">That is all the card generation for today. The limit resets tomorrow.</string>
+    <!-- Not "busy" and not "offline": the server itself was slow to answer, which on Render is
+         usually an idle instance waking up. See auth_error_slow. -->
+    <string name="generate_error_slow">The server is taking a while to answer. If it has been idle it can need a couple of minutes to wake up — try generating again shortly.</string>
+    <!-- A 404: this device holds a topic the server no longer has. A sync fixes it, and the
+         "not set up correctly" this used to fall through to would have sent somebody to look for
+         a server fault instead. -->
+    <string name="generate_error_missing_topic">That topic isn\'t on the server any more. Sync to refresh your topics, then try again.</string>
+    <string name="generate_error_broken">Something went wrong talking to the server. Try again.</string>
     <plurals name="generate_done">
         <item quantity="one">%d card ready to review</item>
         <item quantity="other">%d cards ready to review</item>

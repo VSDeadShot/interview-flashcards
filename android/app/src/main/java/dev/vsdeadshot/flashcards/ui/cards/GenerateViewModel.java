@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData;
 import dev.vsdeadshot.flashcards.R;
 import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.data.remote.ApiException;
+import dev.vsdeadshot.flashcards.data.remote.Failure;
 import dev.vsdeadshot.flashcards.ui.Graph;
 import java.io.IOException;
 import java.util.List;
@@ -56,29 +57,43 @@ public final class GenerateViewModel extends AndroidViewModel {
     /**
      * What a failed generation should tell the person who asked for it.
      *
-     * <p>Takes the status rather than the exception so it can be tested from outside
-     * {@code data.remote}, whose {@code ApiException} constructor is package-private.
+     * <p>Takes the kind of failure and the status rather than the exception so it can be tested
+     * from outside {@code data.remote}, whose {@code ApiException} constructor is private.
+     * {@code status} is read only for {@link Failure#ANSWERED}.
      *
-     * <p><strong>Only 503 invites a retry now, and 429 invites one tomorrow.</strong> The backend
-     * answers 503 for an upstream that did not respond, 422 for a model that had nothing usable
-     * to say, 429 when the day's generation allowance is spent, and a bodyless 500 for our own
-     * credential or model name being wrong -- which {@code ApiExceptionHandler} leaves unmapped
-     * on purpose, so nothing about the misconfiguration is described to a caller. Defaulting the
-     * unrecognised case to "busy, try again shortly" made this side repeat the mistake that was
-     * fixed one layer down: a request the server has rejected as ours is not a passing outage,
-     * and telling somebody to wait for a key to start working asks them to wait forever.
+     * <p><strong>Among the backend's own answers, only 503 invites a retry now, and 429 invites
+     * one tomorrow.</strong> The backend answers 503 for an upstream that did not respond, 422
+     * for a model that had nothing usable to say, 429 when the day's generation allowance is
+     * spent, and a bodyless 500 for our own credential or model name being wrong -- which
+     * {@code ApiExceptionHandler} leaves unmapped on purpose, so nothing about the
+     * misconfiguration is described to a caller. Defaulting the unrecognised case to "busy, try
+     * again shortly" made this side repeat the mistake that was fixed one layer down: a request
+     * the server has rejected as ours is not a passing outage, and telling somebody to wait for a
+     * key to start working asks them to wait forever.
      *
      * <p>429 has to be named here for that same reason inverted. Left to the default it would be
      * reported as a server that is set up wrongly and will never work, when in fact nothing is
-     * wrong and it works again at midnight — the most misleading answer of the five.
+     * wrong and it works again at midnight. 404 is named because it is a topic this device
+     * holds and the server does not, which a sync fixes and "not set up correctly" would have
+     * sent somebody looking for a server fault instead.
+     *
+     * <p>A server that was slow to answer, or whose router answered for it, is
+     * {@link Failure#SLOW} and never reaches the status switch — so a gateway's 502 cannot be
+     * mistaken for the misconfigured default.
      */
     @StringRes
-    static int messageFor(int status) {
-        return switch (status) {
-            case 422 -> R.string.generate_error_refused;
-            case 429 -> R.string.generate_error_limit;
-            case 503 -> R.string.generate_error_busy;
-            default -> R.string.generate_error_misconfigured;
+    static int messageFor(Failure failure, int status) {
+        return switch (failure) {
+            case SLOW -> R.string.generate_error_slow;
+            case OFFLINE -> R.string.generate_error_offline;
+            case BROKEN -> R.string.generate_error_broken;
+            case ANSWERED -> switch (status) {
+                case 404 -> R.string.generate_error_missing_topic;
+                case 422 -> R.string.generate_error_refused;
+                case 429 -> R.string.generate_error_limit;
+                case 503 -> R.string.generate_error_busy;
+                default -> R.string.generate_error_misconfigured;
+            };
         };
     }
 
@@ -95,11 +110,13 @@ public final class GenerateViewModel extends AndroidViewModel {
                 int stored = Graph.generator(getApplication()).generate(topicId, focus, count);
                 state.postValue(new GenerateState(false, stored, null));
             } catch (ApiException e) {
-                state.postValue(new GenerateState(false, null, messageFor(e.status())));
+                state.postValue(new GenerateState(false, null,
+                        messageFor(Failure.of(e), e.status())));
             } catch (IOException e) {
                 // The one feature in this app that a dead radio actually stops. Everything else
-                // was built so the network being absent changes nothing.
-                state.postValue(new GenerateState(false, null, R.string.generate_error_offline));
+                // was built so the network being absent changes nothing — though not every
+                // IOException is a dead radio, which is what Failure.of sorts out.
+                state.postValue(new GenerateState(false, null, messageFor(Failure.of(e), 0)));
             }
         });
     }

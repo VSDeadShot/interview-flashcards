@@ -13,6 +13,7 @@ import dev.vsdeadshot.flashcards.data.AuthRepository;
 import dev.vsdeadshot.flashcards.data.auth.TokenStore;
 import dev.vsdeadshot.flashcards.data.auth.TokenStore.AuthState;
 import dev.vsdeadshot.flashcards.data.remote.ApiException;
+import dev.vsdeadshot.flashcards.data.remote.Failure;
 import dev.vsdeadshot.flashcards.ui.Graph;
 import java.io.IOException;
 import java.util.concurrent.Executor;
@@ -87,25 +88,36 @@ public final class AuthViewModel extends AndroidViewModel {
     }
 
     /**
-     * What a refused sign-in should tell the person who typed the passphrase.
+     * What a failed sign-in should tell the person who typed the passphrase.
      *
-     * <p>Takes the status rather than the exception so it can be tested from outside
-     * {@code data.remote}, whose {@code ApiException} constructor is package-private — the same
-     * arrangement {@code GenerateViewModel.messageFor} settled on.
+     * <p>Takes the kind of failure and the status rather than the exception so it can be tested
+     * from outside {@code data.remote}, whose {@code ApiException} constructor is private — the
+     * same arrangement {@code GenerateViewModel.messageFor} settled on. {@code status} is read
+     * only for {@link Failure#ANSWERED}; anything else never got an answer worth reading.
+     *
+     * <p>{@link Failure#SLOW} is the reason this takes a kind at all. A Render cold start takes
+     * about two minutes, longer than this client waits, and it used to reach this screen as
+     * "Signing in needs a connection" on a device that was online the whole time.
      *
      * <p>{@code 503} is named because it is the answer that would otherwise be the most
-     * misleading of the four: it means the server has no passphrase configured, so nothing the
-     * person types will ever work and telling them to check what they typed sends them round a
-     * loop with no exit. {@code 429} is named for the inverse reason — nothing is wrong, and
-     * the wait is minutes rather than forever.
+     * misleading: it means the server has no passphrase configured, so nothing the person types
+     * will ever work and telling them to check what they typed sends them round a loop with no
+     * exit. Only the backend's own {@code 503} arrives here — a bodiless one is the router, and
+     * {@link Failure#of} has already called it slow. {@code 429} is named for the inverse
+     * reason: nothing is wrong, and the wait is minutes rather than forever.
      */
     @StringRes
-    static int messageFor(int status) {
-        return switch (status) {
-            case 400, 401 -> R.string.auth_error_refused;
-            case 429 -> R.string.auth_error_too_many;
-            case 503 -> R.string.auth_error_unavailable;
-            default -> R.string.auth_error_server;
+    static int messageFor(Failure failure, int status) {
+        return switch (failure) {
+            case SLOW -> R.string.auth_error_slow;
+            case OFFLINE -> R.string.auth_error_offline;
+            case BROKEN -> R.string.auth_error_broken;
+            case ANSWERED -> switch (status) {
+                case 400, 401 -> R.string.auth_error_refused;
+                case 429 -> R.string.auth_error_too_many;
+                case 503 -> R.string.auth_error_unavailable;
+                default -> R.string.auth_error_server;
+            };
         };
     }
 
@@ -120,9 +132,10 @@ public final class AuthViewModel extends AndroidViewModel {
                 repository.get().signIn(passphrase);
                 signIn.postValue(new SignInState(false, true, null));
             } catch (ApiException e) {
-                signIn.postValue(new SignInState(false, false, messageFor(e.status())));
+                signIn.postValue(new SignInState(false, false,
+                        messageFor(Failure.of(e), e.status())));
             } catch (IOException e) {
-                signIn.postValue(new SignInState(false, false, R.string.auth_error_offline));
+                signIn.postValue(new SignInState(false, false, messageFor(Failure.of(e), 0)));
             }
             // The store's listener publishes the new state on its own, so nothing here has to
             // remember to. That is the point of watching it rather than setting the state from
