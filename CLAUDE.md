@@ -438,6 +438,13 @@ What a mock server cannot prove is that this client and Jackson agree on the wir
 
 **A Robolectric test needs `@Config(application = Application.class)`.** Robolectric does not create the app's content providers, so `androidx.startup` never initialises WorkManager and `FlashcardsApp.onCreate` throws — with a message accusing the manifest of disabling an initializer it does not disable. On a device that initializer is in the packaged manifest and runs ahead of `onCreate`, so this is a test-environment gap rather than a fault to fix in the app. It is not fixed by making the app a `Configuration.Provider` either: that would have every data-layer test boot a real WorkManager and a real database to run a scheduler test.
 
+## Backlog
+
+Recorded so each is decided on purpose rather than rediscovered. **None of these is implemented.**
+
+- **A longer sign-in timeout for Render cold starts (~150s, needs a waiting UI).** An instance idle long enough to be put to sleep takes about 130 seconds to answer, and sign-in gives up at the client's 20-second read timeout. Since `12b5970` that reads as "The server is taking a while to answer" rather than "needs a connection", but the sign-in still fails and has to be retried by hand. The mechanism already exists: `TimeoutInterceptor` sits on both clients and honours a per-call `X-Read-Timeout-Seconds`, which `generate` uses at 60. Giving `login` about 150 would let a cold start succeed — but only once the screen says it is waiting, because two and a half minutes behind a bare spinner reads as a hang.
+- **Creating a topic from the app.** See `docs/DECISIONS.md`, entry 3.
+
 ## Conventions
 
 - Comments explain *why*, not *what*. Several non-obvious decisions above are recorded in comments at the point they matter; keep that up rather than letting the reasoning live only here.
