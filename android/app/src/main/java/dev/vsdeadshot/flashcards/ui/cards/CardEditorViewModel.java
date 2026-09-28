@@ -85,14 +85,16 @@ public final class CardEditorViewModel extends AndroidViewModel {
     private void load() {
         io.execute(() -> {
             List<TopicEntity> topics = repository.topics();
+            boolean synced = repository.hasSynced();
             if (candidateId != NO_CANDIDATE) {
                 CandidateEntity candidate = candidates.find(candidateId);
-                state.postValue(new EditorState(null, candidate, topics, candidate == null));
+                state.postValue(
+                        new EditorState(null, candidate, topics, synced, candidate == null));
                 return;
             }
             CardEntity card = cardId == NEW_CARD ? null : repository.find(cardId);
-            state.postValue(
-                    new EditorState(card, null, topics, cardId != NEW_CARD && card == null));
+            state.postValue(new EditorState(
+                    card, null, topics, synced, cardId != NEW_CARD && card == null));
         });
     }
 
@@ -145,10 +147,13 @@ public final class CardEditorViewModel extends AndroidViewModel {
      * @param candidate the generated card being corrected, or null otherwise
      * @param topics what a card may be filed under — <strong>empty on a device that has never
      *     synced</strong>, which is not a state to hide, since every save would be refused
+     * @param synced whether a sync has ever come back. With no topics, it is the difference
+     *     between "run a sync" and "the server has none", and the second is what a fresh server
+     *     database produces
      * @param missing true when the card or candidate was asked for and is no longer there
      */
     public record EditorState(@Nullable CardEntity card, @Nullable CandidateEntity candidate,
-            List<TopicEntity> topics, boolean missing) {
+            List<TopicEntity> topics, boolean synced, boolean missing) {
 
         /**
          * True for a candidate as well as a blank editor, which is what hides the archive

@@ -163,7 +163,13 @@ public final class StatsFragment extends Fragment {
         LinearLayout container = view.findViewById(R.id.stats_topics);
         container.removeAllViews();
         boolean none = stats.byTopic().isEmpty();
-        view.findViewById(R.id.stats_no_topics).setVisibility(none ? View.VISIBLE : View.GONE);
+        TextView noTopics = view.findViewById(R.id.stats_no_topics);
+        noTopics.setVisibility(none ? View.VISIBLE : View.GONE);
+        // "Run a sync" is advice that has already been taken once one has come back, so an empty
+        // list after that says where topics come from instead of asking for another.
+        noTopics.setText(stats.hasSynced()
+                ? R.string.stats_no_topics_on_server
+                : R.string.stats_no_topics);
         // Hidden as well as empty. A card with nothing in it is a rounded rectangle of surface
         // sitting under a sentence explaining why there is nothing to put in it.
         view.findViewById(R.id.stats_topics_card).setVisibility(none ? View.GONE : View.VISIBLE);

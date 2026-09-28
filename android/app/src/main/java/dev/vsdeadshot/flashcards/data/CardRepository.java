@@ -3,6 +3,7 @@ package dev.vsdeadshot.flashcards.data;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.CardSummaryRow;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
+import dev.vsdeadshot.flashcards.data.local.StatsSnapshotEntity;
 import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.scheduler.SchedulingState;
 import java.time.Clock;
@@ -66,6 +67,19 @@ public final class CardRepository {
      */
     public List<TopicEntity> topics() {
         return db.topics().findAll();
+    }
+
+    /**
+     * Whether a sync has ever come back, which is what turns an empty {@link #topics()} from
+     * "run a sync" into "the server has none".
+     *
+     * <p>Read from the stats snapshot because that is written only by a pull that got through
+     * topics and cards first. A pull that failed at the very end leaves this false and keeps the
+     * older message, which is the safe way round.
+     */
+    public boolean hasSynced() {
+        StatsSnapshotEntity snapshot = db.stats().snapshot();
+        return snapshot != null && snapshot.fetchedAt != null;
     }
 
     /**

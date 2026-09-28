@@ -24,6 +24,7 @@ import dev.vsdeadshot.flashcards.R;
 import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.local.CardEntity;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
+import dev.vsdeadshot.flashcards.data.local.StatsSnapshotEntity;
 import dev.vsdeadshot.flashcards.data.local.TopicEntity;
 import dev.vsdeadshot.flashcards.ui.Graph;
 import dev.vsdeadshot.flashcards.ui.MainActivity;
@@ -222,6 +223,34 @@ public class CardEditorFragmentTest {
                 activity.findViewById(R.id.editor_no_topics).getVisibility());
         assertEquals("every save would be refused, so there is nothing to offer",
                 View.GONE, activity.findViewById(R.id.editor_fields).getVisibility());
+        assertEquals("nothing has been fetched yet, so a sync is the right thing to suggest",
+                activity.getString(R.string.editor_no_topics), text(R.id.editor_no_topics));
+    }
+
+    /**
+     * A sync has come back with no topics, which is what a fresh server database produces. Asking
+     * for another sync would change nothing, so the editor says where topics actually come from.
+     */
+    @Test
+    public void aSyncThatBroughtNoTopicsSaysTheServerHasNoneRatherThanAskingForAnother()
+            throws Exception {
+        db.topics().deleteAll();
+        StatsSnapshotEntity pulled = new StatsSnapshotEntity();
+        pulled.currentStreakDays = 0;
+        pulled.fetchedAt = Instant.now();
+        db.stats().saveSnapshot(pulled);
+        openList();
+
+        activity.findViewById(R.id.cards_new).performClick();
+        settle();
+
+        assertEquals(View.VISIBLE,
+                activity.findViewById(R.id.editor_no_topics).getVisibility());
+        assertEquals("still nothing to save a card under",
+                View.GONE, activity.findViewById(R.id.editor_fields).getVisibility());
+        assertEquals("a sync has already run, so the server is where topics are missing",
+                activity.getString(R.string.editor_no_topics_on_server),
+                text(R.id.editor_no_topics));
     }
 
     // ---- fixtures -----------------------------------------------------------------------------

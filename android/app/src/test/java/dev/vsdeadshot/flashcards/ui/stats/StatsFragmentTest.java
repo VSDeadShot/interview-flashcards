@@ -191,6 +191,26 @@ public class StatsFragmentTest {
                 activity.findViewById(R.id.stats_no_topics).getVisibility());
         LinearLayout topics = activity.findViewById(R.id.stats_topics);
         assertEquals(0, topics.getChildCount());
+        assertEquals("nothing has been fetched yet, so a sync is the right thing to suggest",
+                activity.getString(R.string.stats_no_topics), text(R.id.stats_no_topics));
+    }
+
+    /**
+     * The state a fresh database produces. A sync has come back and the server had no topics to
+     * send, so "run a sync" is advice already taken — repeating it has somebody pressing sync
+     * forever. The snapshot is the marker: it is written only by a pull that got that far.
+     */
+    @Test
+    public void aSyncThatBroughtNoTopicsSaysTheServerHasNoneRatherThanAskingForAnother()
+            throws Exception {
+        cacheStreak(0, Instant.now());
+        openStats();
+
+        assertEquals(View.VISIBLE,
+                activity.findViewById(R.id.stats_no_topics).getVisibility());
+        assertEquals("a sync has already run, so the server is where topics are missing",
+                activity.getString(R.string.stats_no_topics_on_server),
+                text(R.id.stats_no_topics));
     }
 
     /**

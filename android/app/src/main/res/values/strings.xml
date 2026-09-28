@@ -108,6 +108,10 @@
         <item quantity="other">%1$d due of %2$d cards</item>
     </plurals>
     <string name="stats_no_topics">No topics yet. Run a sync to fetch them.</string>
+    <!-- The other empty state, after a sync has come back. "Run a sync" is then advice that has
+         already been taken and changed nothing, so this says where topics actually come from:
+         nothing in the app creates one yet. -->
+    <string name="stats_no_topics_on_server">The server has no topics yet. Topics can\'t be created in the app yet — add one on the server, then sync.</string>
 
     <string name="study_show_answer">Show answer</string>
 
@@ -188,6 +192,8 @@
 Fix it and save to try again.</string>
 
     <string name="editor_no_topics">No topics yet. Run a sync before writing a card.</string>
+    <!-- See stats_no_topics_on_server: a sync has run and the server had nothing to send. -->
+    <string name="editor_no_topics_on_server">The server has no topics yet. Topics can\'t be created in the app yet — add one on the server, then sync.</string>
     <string name="editor_gone">That card is no longer here.</string>
 
     <string name="editor_archive_title">Archive this card?</string>

@@ -2,6 +2,7 @@ package dev.vsdeadshot.flashcards.ui.cards;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -103,9 +104,12 @@ public final class CardEditorFragment extends Fragment {
         topics = state.topics();
         view.findViewById(R.id.editor_fields)
                 .setVisibility(state.canSave() ? View.VISIBLE : View.GONE);
-        view.findViewById(R.id.editor_no_topics)
-                .setVisibility(state.canSave() ? View.GONE : View.VISIBLE);
+        TextView noTopics = view.findViewById(R.id.editor_no_topics);
+        noTopics.setVisibility(state.canSave() ? View.GONE : View.VISIBLE);
         if (!state.canSave()) {
+            noTopics.setText(state.synced()
+                    ? R.string.editor_no_topics_on_server
+                    : R.string.editor_no_topics);
             return;
         }
 

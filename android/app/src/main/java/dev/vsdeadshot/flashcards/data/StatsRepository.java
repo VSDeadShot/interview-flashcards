@@ -80,5 +80,14 @@ public final class StatsRepository {
         public boolean hasStreak() {
             return streakDays != null;
         }
+
+        /**
+         * Whether a sync has ever come back. The snapshot is written only by a pull that got
+         * through topics and cards first, so this is what tells an empty topic list that has never
+         * been fetched from one the server really sent empty.
+         */
+        public boolean hasSynced() {
+            return streakAsOf != null;
+        }
     }
 }
