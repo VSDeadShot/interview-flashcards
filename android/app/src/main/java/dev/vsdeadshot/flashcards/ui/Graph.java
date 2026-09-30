@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 public final class Graph {
 
     private static volatile ExecutorService io;
+    private static volatile ExecutorService authIo;
 
     /** Non-null only in tests; see {@link #installDatabase}. */
     private static volatile FlashcardsDatabase database;
@@ -57,6 +58,33 @@ public final class Graph {
             }
         }
         return io;
+    }
+
+    /**
+     * The thread signing in and out run on, and nothing else.
+     *
+     * <p>Not {@link #io()}, because a sign-in waits on the network for as long as a server waking
+     * from idle takes, and every screen's reads queue on that one thread — so sharing it would
+     * freeze the rest of the app for the whole wait. Nothing here needs ordering against the
+     * cache: signing in and out write only the token store, never Room. It is single-threaded
+     * for the same reason {@code io} is, so a sign-out tapped during a sign-in runs after it.
+     */
+    public static Executor authIo() {
+        if (authIo == null) {
+            synchronized (Graph.class) {
+                if (authIo == null) {
+                    authIo = Executors.newSingleThreadExecutor(runnable -> {
+                        Thread thread = new Thread(runnable, "flashcards-auth");
+                        // Daemon for io's reason: a sign-in still waiting must not keep the
+                        // process alive after the last screen has gone. What it writes is one
+                        // committed preference, so there is nothing half-done to lose.
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                }
+            }
+        }
+        return authIo;
     }
 
     public static FlashcardsDatabase database(Context context) {

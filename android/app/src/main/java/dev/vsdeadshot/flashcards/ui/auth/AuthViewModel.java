@@ -65,7 +65,10 @@ public final class AuthViewModel extends AndroidViewModel {
     private final TokenStore.Listener listener = state::postValue;
 
     public AuthViewModel(@NonNull Application application) {
-        this(application, () -> Graph.auth(application), Graph.tokens(application), Graph.io());
+        // Graph.authIo, not Graph.io: a sign-in waits on the network, and queued on the cache's
+        // one thread it would stall every screen's reads for as long as that takes.
+        this(application, () -> Graph.auth(application), Graph.tokens(application),
+                Graph.authIo());
     }
 
     @VisibleForTesting
