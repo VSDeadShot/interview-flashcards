@@ -47,6 +47,18 @@ final class TokenAuthenticator implements Authenticator {
      */
     private static final int MAX_ATTEMPTS = 2;
 
+    /**
+     * One lock for every authenticator in the process, not one per instance. The sync and
+     * generation each build their own client, so a lock on {@code this} only ever ordered
+     * renewals within one of them — two refused at once each renewed, and the second presented
+     * a refresh token the first had already spent.
+     *
+     * <p>Deliberately not the token store's own monitor. This one is held across the refresh
+     * request itself, which can take as long as the network does; a sign-out waiting on it would
+     * sit behind that call. The store's writes stay independent of it and never block here.
+     */
+    private static final Object REFRESH_LOCK = new Object();
+
     private final TokenStore tokens;
     private final AuthApi auth;
 
@@ -62,11 +74,12 @@ final class TokenAuthenticator implements Authenticator {
             return null;
         }
 
-        // Synchronized so two calls failing at once make one refresh between them rather than
-        // two. The second would present a refresh token the first has already spent, which the
-        // server is right to read as a copy in circulation — and it would answer by revoking the
-        // family, signing this device out over nothing but its own concurrency.
-        synchronized (this) {
+        // Synchronized so two calls failing at once — on this client or another — make one
+        // refresh between them rather than two. The second would present a refresh token the
+        // first has already spent, which the server is right to read as a copy in circulation,
+        // and it would answer by revoking the family, signing this device out over nothing but
+        // its own concurrency.
+        synchronized (REFRESH_LOCK) {
             String current = tokens.accessToken();
             if (current != null
                     && !AuthInterceptor.bearer(current)

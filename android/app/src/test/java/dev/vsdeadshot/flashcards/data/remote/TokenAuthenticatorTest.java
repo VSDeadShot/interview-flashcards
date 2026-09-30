@@ -10,7 +10,14 @@ import static org.junit.Assert.assertTrue;
 import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.auth.TokenStore.SignedOutReason;
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import mockwebserver3.Dispatcher;
 import mockwebserver3.MockResponse;
 import mockwebserver3.MockWebServer;
@@ -242,6 +249,15 @@ public class TokenAuthenticatorTest {
                 .build();
     }
 
+    /** The status a call ended with, so a refusal is something to assert on, not a crash. */
+    private static int statusOf(FlashcardsApi client) throws IOException {
+        try {
+            return client.topics().execute().code();
+        } catch (ApiException refused) {
+            return refused.status();
+        }
+    }
+
     private void topicsIgnoringRefusal() throws IOException {
         try {
             api.topics().execute();
@@ -299,6 +315,68 @@ public class TokenAuthenticatorTest {
         assertEquals("the sign-in made during the refresh is the session that stands",
                 "fresh-access", tokens.accessToken());
         assertEquals("fresh-refresh", tokens.refreshToken());
+    }
+
+    /**
+     * Two clients, as in the app: the sync builds one and generation builds another, each with
+     * its own authenticator, both reading one token store. When both are refused at once they
+     * must renew once between them. A second renewal would present a refresh token the first has
+     * already spent, which the server rightly reads as a copy in circulation — and answers by
+     * revoking the family, signing the device out over nothing but its own concurrency.
+     *
+     * <p>The refresh is held until both originals have been refused, so both authenticators are
+     * inside {@code authenticate} at the same time on every run rather than by luck.
+     */
+    @Test
+    public void twoClientsRefusedAtOnceRenewOnceBetweenThem() throws Exception {
+        CountDownLatch bothRefused = new CountDownLatch(2);
+        AtomicInteger refreshes = new AtomicInteger();
+        List<String> retriedWith = new CopyOnWriteArrayList<>();
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                String bearer = request.getHeaders().get("Authorization");
+                if (request.getTarget().endsWith("/auth/refresh")) {
+                    refreshes.incrementAndGet();
+                    bothRefused.await(5, TimeUnit.SECONDS);
+                    return issued();
+                }
+                if (("Bearer " + OLD_ACCESS).equals(bearer)) {
+                    bothRefused.countDown();
+                    return new MockResponse.Builder().code(401).build();
+                }
+                retriedWith.add(bearer);
+                return new MockResponse.Builder()
+                        .code(200)
+                        .setHeader("Content-Type", "application/json")
+                        .body("[]")
+                        .build();
+            }
+        });
+        FlashcardsApi sync = ApiClient.create(server.url("/api/v1/").toString(), tokens);
+        FlashcardsApi generation = ApiClient.create(server.url("/api/v1/").toString(), tokens);
+
+        int firstStatus;
+        int secondStatus;
+        ExecutorService both = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> first = both.submit(() -> statusOf(sync));
+            Future<Integer> second = both.submit(() -> statusOf(generation));
+            firstStatus = first.get(20, TimeUnit.SECONDS);
+            secondStatus = second.get(20, TimeUnit.SECONDS);
+        } finally {
+            both.shutdownNow();
+        }
+
+        assertEquals("one renewal between them; a second would present a spent refresh token",
+                1, refreshes.get());
+        assertEquals("the first caller gets its answer", 200, firstStatus);
+        assertEquals("and so does the second, on the token the first renewed", 200, secondStatus);
+        assertEquals("both originals were retried", 2, retriedWith.size());
+        for (String bearer : retriedWith) {
+            assertEquals("each retry carries the one renewed token",
+                    "Bearer " + NEW_ACCESS, bearer);
+        }
     }
 
     @Test
