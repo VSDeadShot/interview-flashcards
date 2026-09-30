@@ -442,8 +442,8 @@ What a mock server cannot prove is that this client and Jackson agree on the wir
 
 Recorded so each is decided on purpose rather than rediscovered. **None of these is implemented.**
 
-- **A longer sign-in timeout for Render cold starts (~150s, needs a waiting UI).** An instance idle long enough to be put to sleep takes about 130 seconds to answer, and sign-in gives up at the client's 20-second read timeout. Since `12b5970` that reads as "The server is taking a while to answer" rather than "needs a connection", but the sign-in still fails and has to be retried by hand. The mechanism already exists: `TimeoutInterceptor` sits on both clients and honours a per-call `X-Read-Timeout-Seconds`, which `generate` uses at 60. Giving `login` about 150 would let a cold start succeed — but only once the screen says it is waiting, because two and a half minutes behind a bare spinner reads as a hang.
 - **Creating a topic from the app.** See `docs/DECISIONS.md`, entry 3.
+- **`SyncWorkerTest.aRunWithNothingLeftOverIsDone` takes 20 seconds for no reason.** It queues answers for topics and cards but not for `/stats`, which the pull fetches last. `MockWebServer`'s default dispatcher waits for a response that never comes, the client times out at its 20-second default, and the pull swallows a failed stats fetch by design — so the test passes, slowly. Queuing a `/stats` answer fixes it. The suite's one deliberately slow test is `SignInTimeoutTest`, which needs 25 seconds to prove sign-in outlasts that same default; this one should not be a second.
 
 ## Conventions
 
