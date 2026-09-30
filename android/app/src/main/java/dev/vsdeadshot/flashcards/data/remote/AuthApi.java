@@ -5,6 +5,7 @@ import dev.vsdeadshot.flashcards.data.remote.dto.RefreshRequestDto;
 import dev.vsdeadshot.flashcards.data.remote.dto.TokenResponseDto;
 import retrofit2.Call;
 import retrofit2.http.Body;
+import retrofit2.http.Headers;
 import retrofit2.http.POST;
 
 /**
@@ -18,6 +19,17 @@ import retrofit2.http.POST;
  */
 public interface AuthApi {
 
+    /**
+     * Allowed 150 seconds to answer, where every other call gets twenty.
+     *
+     * <p>Signing in is the call a person makes right after opening the app, so it is the one that
+     * meets a Render instance that has been put to sleep — and waking one takes about two minutes.
+     * At the default it gave up before the server could answer, every time. Only this call waits
+     * that long: renewal and logout keep the default, since a slow answer to either already costs
+     * nothing, and a longer wait would only delay finding that out. The header is consumed by
+     * {@link TimeoutInterceptor} and never reaches the server.
+     */
+    @Headers(TimeoutInterceptor.HEADER + ": 150")
     @POST("auth/login")
     Call<TokenResponseDto> login(@Body LoginRequestDto body);
 
