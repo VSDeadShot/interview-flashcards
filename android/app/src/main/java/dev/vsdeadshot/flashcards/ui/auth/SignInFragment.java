@@ -90,6 +90,8 @@ public final class SignInFragment extends Fragment {
             @NonNull SignInState state) {
         view.findViewById(R.id.sign_in_progress)
                 .setVisibility(state.running() ? View.VISIBLE : View.GONE);
+        view.findViewById(R.id.sign_in_waking)
+                .setVisibility(state.waking() ? View.VISIBLE : View.GONE);
         view.findViewById(R.id.sign_in_submit).setEnabled(!state.running());
 
         TextView error = view.findViewById(R.id.sign_in_error);

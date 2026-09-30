@@ -49,6 +49,11 @@
     <!-- The exchange started and went wrong some other way, such as an answer with nothing in
          it. Neither the device's connection nor anything the person typed. -->
     <string name="auth_error_broken">Something went wrong talking to the server. Try again.</string>
+    <!-- Shown under the progress bar once a sign-in has gone five seconds unanswered. Not an
+         error: the attempt is still running and may well succeed. It is there because a server
+         put to sleep takes about two minutes to answer, and a progress bar alone for that long
+         reads as an app that has frozen. -->
+    <string name="auth_waking">Waking up the server — this can take a couple of minutes on first use.</string>
 
     <!-- The strip above the content. It is the only place a dead session surfaces on its own —
          a background sync cannot report one through WorkManager, so this reads the store. -->

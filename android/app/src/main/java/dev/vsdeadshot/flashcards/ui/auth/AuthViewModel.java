@@ -1,6 +1,8 @@
 package dev.vsdeadshot.flashcards.ui.auth;
 
 import android.app.Application;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
@@ -16,6 +18,7 @@ import dev.vsdeadshot.flashcards.data.remote.ApiException;
 import dev.vsdeadshot.flashcards.data.remote.Failure;
 import dev.vsdeadshot.flashcards.ui.Graph;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -38,10 +41,15 @@ public final class AuthViewModel extends AndroidViewModel {
     /**
      * One sign-in attempt. {@code error} is a string resource rather than a message, so this
      * class never writes user-facing copy.
+     *
+     * <p>{@code waking} is true only while an attempt is still running after
+     * {@link #WAKING_AFTER} — long enough that it is most likely a server woken from idle, which
+     * takes about two minutes. A finished attempt, either way, never says it.
      */
-    public record SignInState(boolean running, boolean succeeded, @StringRes Integer error) {
+    public record SignInState(boolean running, boolean succeeded, @StringRes Integer error,
+            boolean waking) {
 
-        static final SignInState IDLE = new SignInState(false, false, null);
+        static final SignInState IDLE = new SignInState(false, false, null, false);
     }
 
     /**
@@ -63,6 +71,31 @@ public final class AuthViewModel extends AndroidViewModel {
 
     /** Held as a field because the store's listeners are otherwise collectable. */
     private final TokenStore.Listener listener = state::postValue;
+
+    /**
+     * How long an attempt goes unanswered before the screen says the server is waking.
+     *
+     * <p>Long enough that an ordinary sign-in, which answers in well under a second, never
+     * flashes the message; short enough that nobody has decided the app froze before it
+     * appears. The cold start it exists for takes about two minutes, so the exact figure is not
+     * delicate.
+     */
+    static final Duration WAKING_AFTER = Duration.ofSeconds(5);
+
+    /** The main thread, where the delayed notice is posted and where the state is set. */
+    private final Handler main = new Handler(Looper.getMainLooper());
+
+    /**
+     * Marks the attempt as waiting on a waking server — if it is still running. Checked here
+     * rather than trusted to cancellation alone: an answer's {@code postValue} and this can be
+     * queued on the main thread in either order, and the finished state must win either way.
+     */
+    private final Runnable wakingNotice = () -> {
+        SignInState now = signIn.getValue();
+        if (now != null && now.running() && !now.waking()) {
+            signIn.setValue(new SignInState(true, false, null, true));
+        }
+    };
 
     public AuthViewModel(@NonNull Application application) {
         // Graph.authIo, not Graph.io: a sign-in waits on the network, and queued on the cache's
@@ -126,20 +159,26 @@ public final class AuthViewModel extends AndroidViewModel {
 
     public void signIn(@Nullable String passphrase) {
         if (passphrase == null || passphrase.isEmpty()) {
-            signIn.setValue(new SignInState(false, false, R.string.auth_error_empty));
+            signIn.setValue(new SignInState(false, false, R.string.auth_error_empty, false));
             return;
         }
-        signIn.setValue(new SignInState(true, false, null));
+        signIn.setValue(new SignInState(true, false, null, false));
+        main.postDelayed(wakingNotice, WAKING_AFTER.toMillis());
         io.execute(() -> {
+            SignInState finished;
             try {
                 repository.get().signIn(passphrase);
-                signIn.postValue(new SignInState(false, true, null));
+                finished = new SignInState(false, true, null, false);
             } catch (ApiException e) {
-                signIn.postValue(new SignInState(false, false,
-                        messageFor(Failure.of(e), e.status())));
+                finished = new SignInState(false, false,
+                        messageFor(Failure.of(e), e.status()), false);
             } catch (IOException e) {
-                signIn.postValue(new SignInState(false, false, messageFor(Failure.of(e), 0)));
+                finished = new SignInState(false, false, messageFor(Failure.of(e), 0), false);
             }
+            // Cancelled before the answer is published, so a quick sign-in never shows the
+            // notice. If it has already fired, the finished state below replaces it.
+            main.removeCallbacks(wakingNotice);
+            signIn.postValue(finished);
             // The store's listener publishes the new state on its own, so nothing here has to
             // remember to. That is the point of watching it rather than setting the state from
             // the two places that change it: a renewal in a background sync changes it too, and
@@ -159,5 +198,6 @@ public final class AuthViewModel extends AndroidViewModel {
     @Override
     protected void onCleared() {
         tokens.removeListener(listener);
+        main.removeCallbacks(wakingNotice);
     }
 }

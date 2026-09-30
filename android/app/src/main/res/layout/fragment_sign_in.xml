@@ -103,6 +103,20 @@
             android:indeterminate="true"
             android:visibility="gone" />
 
+        <!--
+            Under the bar rather than in the error slot above: the attempt is still running, and
+            this explains the wait rather than reporting a failure.
+        -->
+        <TextView
+            android:id="@+id/sign_in_waking"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/auth_waking"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/sign_in_submit"
             style="@style/Widget.Flashcards.Button"
