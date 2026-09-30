@@ -121,6 +121,44 @@ public class PrefsTokenStoreTest {
     }
 
     /**
+     * What a renewal uses. It spent {@code refresh-1} to get the new pair, and by the time the
+     * answer arrives somebody may have signed out; the pair is written only if the token it spent
+     * is still the one here.
+     */
+    @Test
+    public void aRenewedPairIsRefusedOnceTheTokenItSpentIsGone() {
+        store.save("access-1", "refresh-1");
+        store.signOut(SignedOutReason.SIGNED_OUT);
+
+        boolean saved = store.saveIfCurrent("refresh-1", "access-2", "refresh-2");
+
+        assertFalse("the token it spent is no longer here, so the pair is not either", saved);
+        assertNull(store.accessToken());
+        assertEquals(SignedOutReason.SIGNED_OUT, store.state().reason());
+    }
+
+    @Test
+    public void aRenewedPairIsStoredWhileTheTokenItSpentIsStillCurrent() {
+        store.save("access-1", "refresh-1");
+
+        assertTrue(store.saveIfCurrent("refresh-1", "access-2", "refresh-2"));
+        assertEquals("access-2", store.accessToken());
+        assertEquals("refresh-2", store.refreshToken());
+    }
+
+    @Test
+    public void anExpiryIsNotRecordedOverASessionThatAlreadyEnded() {
+        store.save("access-1", "refresh-1");
+        store.signOut(SignedOutReason.SIGNED_OUT);
+
+        boolean ended = store.signOutIfCurrent("refresh-1", SignedOutReason.SESSION_EXPIRED);
+
+        assertFalse("the refused token was not the one here any more", ended);
+        assertEquals("a deliberate sign-out keeps its own reason",
+                SignedOutReason.SIGNED_OUT, store.state().reason());
+    }
+
+    /**
      * SharedPreferences holds its listeners weakly, which is why this class keeps its own map of
      * them. Without that the delegate would be the only strong reference, collectable at an
      * unpredictable moment, and the screen would simply stop updating.

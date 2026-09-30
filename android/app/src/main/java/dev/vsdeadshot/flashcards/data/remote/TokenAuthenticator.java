@@ -97,14 +97,21 @@ final class TokenAuthenticator implements Authenticator {
                 Log.w(TAG, "Refresh returned no token pair");
                 return null;
             }
-            tokens.save(issued.accessToken, issued.refreshToken);
+            if (!tokens.saveIfCurrent(refreshToken, issued.accessToken, issued.refreshToken)) {
+                // The session this renewal belonged to ended while it was on the network — a
+                // sign-out, or a sign-out and a fresh sign-in. Writing the pair would undo that,
+                // so it is dropped, and so is the retry that would have spent it.
+                return null;
+            }
             return retryWith(response, issued.accessToken);
         } catch (ApiException e) {
             if (e.status() == 401) {
                 // The refresh token is finished: expired, revoked by a logout elsewhere, or
                 // presented twice and treated as stolen. The server does not say which, on
-                // purpose, and a client would do the same thing about all three.
-                tokens.signOut(SignedOutReason.SESSION_EXPIRED);
+                // purpose, and a client would do the same thing about all three — unless the
+                // session already ended here while this was in flight, in which case the refusal
+                // is about a token the device no longer holds and must not relabel that.
+                tokens.signOutIfCurrent(refreshToken, SignedOutReason.SESSION_EXPIRED);
             }
             // Any other status is the server having a bad moment. The tokens are left alone so
             // the next sync tries again rather than sending somebody to a sign-in screen over a

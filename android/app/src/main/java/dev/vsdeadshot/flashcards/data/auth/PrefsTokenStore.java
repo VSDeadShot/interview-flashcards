@@ -95,7 +95,7 @@ public final class PrefsTokenStore implements TokenStore {
      */
     @SuppressLint("ApplySharedPref")
     @Override
-    public void save(String accessToken, String refreshToken) {
+    public synchronized void save(String accessToken, String refreshToken) {
         prefs.edit()
                 .putString(KEY_ACCESS, accessToken)
                 .putString(KEY_REFRESH, refreshToken)
@@ -109,12 +109,38 @@ public final class PrefsTokenStore implements TokenStore {
      */
     @SuppressLint("ApplySharedPref")
     @Override
-    public void signOut(SignedOutReason reason) {
+    public synchronized void signOut(SignedOutReason reason) {
         prefs.edit()
                 .remove(KEY_ACCESS)
                 .remove(KEY_REFRESH)
                 .putString(KEY_REASON, reason.name())
                 .commit();
+    }
+
+    /**
+     * Every write here is {@code synchronized} on this store, so the read and the write below are
+     * one step against a sign-out on another thread. The monitor is only ever held around a
+     * {@code commit()} — never across a network call — so a sign-out cannot wait behind a
+     * renewal that is still talking to the server.
+     */
+    @Override
+    public synchronized boolean saveIfCurrent(
+            String spentRefreshToken, String accessToken, String refreshToken) {
+        if (spentRefreshToken == null || !spentRefreshToken.equals(refreshToken())) {
+            return false;
+        }
+        save(accessToken, refreshToken);
+        return true;
+    }
+
+    @Override
+    public synchronized boolean signOutIfCurrent(
+            String spentRefreshToken, SignedOutReason reason) {
+        if (spentRefreshToken == null || !spentRefreshToken.equals(refreshToken())) {
+            return false;
+        }
+        signOut(reason);
+        return true;
     }
 
     @Override

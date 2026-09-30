@@ -85,6 +85,37 @@ public final class FakeTokenStore implements TokenStore {
         publish();
     }
 
+    /** The same rule as {@code PrefsTokenStore}, so tests of the authenticator exercise it. */
+    @Override
+    public boolean saveIfCurrent(
+            String spentRefreshToken, String accessToken, String refreshToken) {
+        synchronized (this) {
+            if (spentRefreshToken == null || !spentRefreshToken.equals(this.refreshToken)) {
+                return false;
+            }
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.reason = SignedOutReason.NEVER;
+            this.saves++;
+        }
+        publish();
+        return true;
+    }
+
+    @Override
+    public boolean signOutIfCurrent(String spentRefreshToken, SignedOutReason reason) {
+        synchronized (this) {
+            if (spentRefreshToken == null || !spentRefreshToken.equals(this.refreshToken)) {
+                return false;
+            }
+            this.accessToken = null;
+            this.refreshToken = null;
+            this.reason = reason;
+        }
+        publish();
+        return true;
+    }
+
     @Override
     public synchronized AuthState state() {
         return accessToken != null && refreshToken != null

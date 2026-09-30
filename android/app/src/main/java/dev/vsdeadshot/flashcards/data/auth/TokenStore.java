@@ -70,6 +70,30 @@ public interface TokenStore {
 
     void signOut(SignedOutReason reason);
 
+    /**
+     * Stores a renewed pair, but only if {@code spentRefreshToken} — the one exchanged for it —
+     * is still the refresh token held here.
+     *
+     * <p>A renewal waits on the network, and the session it belongs to can end while it does: a
+     * sign-out, or a sign-out followed by a fresh sign-in. Writing the pair regardless would undo
+     * that. If the logout reached the server the pair is already revoked and the device would
+     * show a session that is not there; if the logout failed on the network, it would be a
+     * working session somebody had just asked to end. The check and the write are one atomic
+     * step against every other write here.
+     *
+     * @return whether the pair was stored
+     */
+    boolean saveIfCurrent(String spentRefreshToken, String accessToken, String refreshToken);
+
+    /**
+     * Ends the session for {@code reason}, but only if {@code spentRefreshToken} is still the
+     * refresh token held here. A refusal that arrives after somebody signed out is about a token
+     * the device no longer holds, and recording it would relabel their sign-out as an expiry.
+     *
+     * @return whether the session was ended
+     */
+    boolean signOutIfCurrent(String spentRefreshToken, SignedOutReason reason);
+
     AuthState state();
 
     void addListener(Listener listener);

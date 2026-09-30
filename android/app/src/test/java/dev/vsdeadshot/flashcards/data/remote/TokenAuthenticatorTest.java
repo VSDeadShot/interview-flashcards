@@ -11,6 +11,7 @@ import dev.vsdeadshot.flashcards.data.auth.FakeTokenStore;
 import dev.vsdeadshot.flashcards.data.auth.TokenStore.SignedOutReason;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import mockwebserver3.Dispatcher;
 import mockwebserver3.MockResponse;
 import mockwebserver3.MockWebServer;
 import mockwebserver3.RecordedRequest;
@@ -206,6 +207,98 @@ public class TokenAuthenticatorTest {
                 3, server.getRequestCount());
         assertTrue("the new pair was stored, and is not thrown away because one request failed",
                 tokens.state().signedIn());
+    }
+
+    /**
+     * Answers the way the backend would, and runs {@code duringRefresh} at the moment the refresh
+     * request arrives — while the authenticator is waiting on the network, which is exactly when
+     * a person tapping sign out or signing in on another thread would land.
+     */
+    private void interleave(Runnable duringRefresh, MockResponse refreshAnswer) {
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if (request.getTarget().endsWith("/auth/refresh")) {
+                    duringRefresh.run();
+                    return refreshAnswer;
+                }
+                if (("Bearer " + OLD_ACCESS).equals(request.getHeaders().get("Authorization"))) {
+                    return new MockResponse.Builder().code(401).build();
+                }
+                return new MockResponse.Builder()
+                        .code(200)
+                        .setHeader("Content-Type", "application/json")
+                        .body("[]")
+                        .build();
+            }
+        });
+    }
+
+    private static MockResponse issued() {
+        return new MockResponse.Builder()
+                .code(200)
+                .setHeader("Content-Type", "application/json")
+                .body(ISSUED)
+                .build();
+    }
+
+    private void topicsIgnoringRefusal() throws IOException {
+        try {
+            api.topics().execute();
+        } catch (ApiException refused) {
+            // Whether the call itself succeeds is not what these tests are about.
+        }
+    }
+
+    /**
+     * The case that matters most. The server revokes the whole family on logout, but a logout
+     * that failed on the network leaves it alive — and a renewal landing after the device has
+     * been cleared would put a working pair straight back, signing somebody in who had just
+     * signed out.
+     */
+    @Test
+    public void aRenewalThatLandsAfterASignOutIsDiscarded() throws Exception {
+        interleave(() -> tokens.signOut(SignedOutReason.SIGNED_OUT), issued());
+
+        topicsIgnoringRefusal();
+
+        assertNull("a sign-out must survive a refresh that was already in flight",
+                tokens.accessToken());
+        assertNull(tokens.refreshToken());
+        assertEquals("and it still reads as the sign-out somebody chose",
+                SignedOutReason.SIGNED_OUT, tokens.state().reason());
+    }
+
+    /**
+     * The same race answered the other way: the logout reached the server first, so the refresh
+     * is refused. That refusal is about a token the device no longer holds, and must not relabel
+     * a deliberate sign-out as a session that expired.
+     */
+    @Test
+    public void aRefusedRenewalAfterASignOutDoesNotRelabelIt() throws Exception {
+        interleave(() -> tokens.signOut(SignedOutReason.SIGNED_OUT),
+                new MockResponse.Builder().code(401).build());
+
+        topicsIgnoringRefusal();
+
+        assertEquals("the banner would apologise for an expiry that never happened",
+                SignedOutReason.SIGNED_OUT, tokens.state().reason());
+    }
+
+    /**
+     * Somebody signed out and straight back in while an old refresh was in flight. The old
+     * family was revoked at the logout, so writing its pair over the fresh one would end the new
+     * session at the very next request.
+     */
+    @Test
+    public void aRenewalThatLandsAfterAFreshSignInDoesNotReplaceIt() throws Exception {
+        interleave(() -> tokens.save("fresh-access", "fresh-refresh"), issued());
+
+        topicsIgnoringRefusal();
+
+        assertEquals("the sign-in made during the refresh is the session that stands",
+                "fresh-access", tokens.accessToken());
+        assertEquals("fresh-refresh", tokens.refreshToken());
     }
 
     @Test
