@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    One field and one button: a topic is a name, and the server derives everything else. A sheet
+    rather than a destination for generate's reason - it is a detour from the card list that ends
+    back on it, with the new topic already in the chip row behind.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="@string/new_topic_title"
+        android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+
+    <!--
+        A label above the field, not a hint inside it: Widget.Flashcards.TextField sets
+        hintEnabled="false", so a hint would never be drawn. See fragment_sign_in.xml.
+    -->
+    <TextView
+        style="@style/TextAppearance.Flashcards.SectionLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:labelFor="@id/new_topic_name"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="7dp"
+        android:text="@string/new_topic_name" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Flashcards.TextField"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- 120 is topic.name's column and CreateTopicRequest's @Size, so nothing typed here can
+             be refused for its length. -->
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/new_topic_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone"
+            android:inputType="textCapWords"
+            android:maxLength="120" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Under the field, for the reason sign-in's is: every answer to these is something done to
+         the name above, so it has to still be on screen when the message arrives. -->
+    <TextView
+        android:id="@+id/new_topic_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorError"
+        android:visibility="gone"
+        tools:text="You already have a topic with that name." />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/new_topic_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/new_topic_create"
+        style="@style/Widget.Flashcards.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:enabled="false"
+        android:text="@string/new_topic_create" />
+
+</LinearLayout>

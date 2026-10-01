@@ -13,4 +13,13 @@
         android:title="@string/generate_title"
         app:showAsAction="ifRoom" />
 
+    <!--
+        In the overflow, never on the bar. A topic is made a handful of times in the life of a
+        deck, and an icon beside generate and sync would ask for attention it has not earned.
+    -->
+    <item
+        android:id="@+id/action_new_topic"
+        android:title="@string/new_topic_title"
+        app:showAsAction="never" />
+
 </menu>

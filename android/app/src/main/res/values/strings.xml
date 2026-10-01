@@ -114,9 +114,8 @@
     </plurals>
     <string name="stats_no_topics">No topics yet. Run a sync to fetch them.</string>
     <!-- The other empty state, after a sync has come back. "Run a sync" is then advice that has
-         already been taken and changed nothing, so this says where topics actually come from:
-         nothing in the app creates one yet. -->
-    <string name="stats_no_topics_on_server">The server has no topics yet. Topics can\'t be created in the app yet — add one on the server, then sync.</string>
+         already been taken and changed nothing, so this says where topics actually come from. -->
+    <string name="stats_no_topics_on_server">The server has no topics yet. Add one with New topic in the Cards tab\'s menu.</string>
 
     <string name="study_show_answer">Show answer</string>
 
@@ -198,7 +197,7 @@ Fix it and save to try again.</string>
 
     <string name="editor_no_topics">No topics yet. Run a sync before writing a card.</string>
     <!-- See stats_no_topics_on_server: a sync has run and the server had nothing to send. -->
-    <string name="editor_no_topics_on_server">The server has no topics yet. Topics can\'t be created in the app yet — add one on the server, then sync.</string>
+    <string name="editor_no_topics_on_server">The server has no topics yet. Add one with New topic in the Cards tab\'s menu.</string>
     <string name="editor_gone">That card is no longer here.</string>
 
     <string name="editor_archive_title">Archive this card?</string>
@@ -236,6 +235,24 @@ Fix it and save to try again.</string>
         <item quantity="one">%d card ready to review</item>
         <item quantity="other">%d cards ready to review</item>
     </plurals>
+
+    <string name="new_topic_title">New topic</string>
+    <string name="new_topic_name">Name</string>
+    <string name="new_topic_create">Create</string>
+    <string name="new_topic_done">Added %1$s</string>
+    <!-- One per thing a person would do next: turn the radio on, wait, try again, change the
+         name, sign in, or stop trying. "Could not add topic" would answer none of them. -->
+    <string name="new_topic_error_offline">No connection. Adding a topic needs the internet.</string>
+    <!-- See auth_error_slow: on Render this is usually an idle instance waking up. A retry is safe
+         even if the first attempt did land, because that one comes back as the duplicate below. -->
+    <string name="new_topic_error_slow">The server is taking too long to answer — it may be waking up. Try again in a minute.</string>
+    <string name="new_topic_error_broken">Something went wrong talking to the server. Try again.</string>
+    <!-- A 400: the name had no letter or digit to build a slug from, such as "!!!". -->
+    <string name="new_topic_error_invalid">Use at least one letter or number.</string>
+    <string name="new_topic_error_signed_out">Sign in to add topics.</string>
+    <!-- A 409. Matched on the slug, so "OS" and "os" count as the same name. -->
+    <string name="new_topic_error_duplicate">You already have a topic with that name.</string>
+    <string name="new_topic_error_misconfigured">The server could not add that topic. Retrying will not help.</string>
 
     <!-- Both quantities read the same. The plural exists so the number is formatted by the
          platform rather than concatenated, which is what makes it translatable at all. -->

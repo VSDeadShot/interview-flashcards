@@ -77,7 +77,7 @@ public final class CardListFragment extends Fragment {
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        addGenerateAction();
+        addToolbarActions();
         // Put back after the editor borrowed it. This runs again when the screen returns, so the
         // hold openWith installs is only ever in force for the one navigation that wants it.
         if (topicArgument() == CardListViewModel.ALL_TOPICS) {
@@ -262,16 +262,18 @@ public final class CardListFragment extends Fragment {
     }
 
     /**
-     * Puts the generate action on the toolbar for as long as this screen is on it.
+     * Puts this screen's actions on the toolbar for as long as it is on it: generating a batch,
+     * and adding a topic.
      *
      * <p>Not the floating action button, which means "new card" and should keep meaning
      * exactly one thing. The toolbar already hosts the sync action, so a verb up there
      * has precedent, and it leaves the FAB's meaning alone.
      *
-     * <p>Scoped to STARTED so the item is added and removed with the screen rather than
-     * lingering on the other two tabs, which have nothing to generate for.
+     * <p>Scoped to STARTED so the items are added and removed with the screen rather than
+     * lingering on the other two tabs. Adding a topic lives here rather than on stats because
+     * the chip row is where topics are listed, so the new one lands in sight.
      */
-    private void addGenerateAction() {
+    private void addToolbarActions() {
         requireActivity().addMenuProvider(new MenuProvider() {
             @Override
             public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
@@ -280,12 +282,17 @@ public final class CardListFragment extends Fragment {
 
             @Override
             public boolean onMenuItemSelected(@NonNull MenuItem item) {
-                if (item.getItemId() != R.id.action_generate) {
-                    return false;
+                if (item.getItemId() == R.id.action_generate) {
+                    GenerateSheet.newInstance()
+                            .show(getParentFragmentManager(), GenerateSheet.TAG);
+                    return true;
                 }
-                GenerateSheet.newInstance()
-                        .show(getParentFragmentManager(), GenerateSheet.TAG);
-                return true;
+                if (item.getItemId() == R.id.action_new_topic) {
+                    NewTopicSheet.newInstance()
+                            .show(getParentFragmentManager(), NewTopicSheet.TAG);
+                    return true;
+                }
+                return false;
             }
         }, getViewLifecycleOwner(), Lifecycle.State.STARTED);
     }

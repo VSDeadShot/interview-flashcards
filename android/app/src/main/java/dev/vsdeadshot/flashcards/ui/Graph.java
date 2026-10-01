@@ -8,10 +8,12 @@ import dev.vsdeadshot.flashcards.data.CardRepository;
 import dev.vsdeadshot.flashcards.data.ReviewRepository;
 import dev.vsdeadshot.flashcards.data.StatsRepository;
 import dev.vsdeadshot.flashcards.data.StudyRepository;
+import dev.vsdeadshot.flashcards.data.TopicRepository;
 import dev.vsdeadshot.flashcards.data.auth.PrefsTokenStore;
 import dev.vsdeadshot.flashcards.data.auth.TokenStore;
 import dev.vsdeadshot.flashcards.data.local.FlashcardsDatabase;
 import dev.vsdeadshot.flashcards.data.remote.ApiClient;
+import dev.vsdeadshot.flashcards.data.remote.FlashcardsApi;
 import java.time.Clock;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +40,9 @@ public final class Graph {
 
     /** Non-null only in tests; see {@link #installDatabase}. */
     private static volatile FlashcardsDatabase database;
+
+    /** Non-null only in tests; see {@link #installApi}. */
+    private static volatile FlashcardsApi api;
 
     private Graph() {
     }
@@ -132,9 +137,22 @@ public final class Graph {
         database = db;
     }
 
+    /**
+     * Points {@link #topicCreator} at a server of the caller's choosing.
+     *
+     * <p>For installDatabase's reason: a test driving the real sheet from the real toolbar has no
+     * other way to reach the client it builds, and the build's own base URL is the deployed
+     * instance. Production never calls this, and {@link #reset()} puts it back.
+     */
+    @VisibleForTesting
+    public static void installApi(FlashcardsApi installed) {
+        api = installed;
+    }
+
     @VisibleForTesting
     public static void reset() {
         database = null;
+        api = null;
     }
 
     public static StatsRepository stats(Context context) {
@@ -175,6 +193,16 @@ public final class Graph {
     public static CandidateRepository generator(Context context) {
         return new CandidateRepository(
                 database(context), ApiClient.create(context), Clock.systemDefaultZone());
+    }
+
+    /**
+     * Adding a topic. Built per call, like {@link #generator}, so the client it carries is only
+     * ever made by somebody who is about to use it.
+     */
+    public static TopicRepository topicCreator(Context context) {
+        FlashcardsApi installed = api;
+        return new TopicRepository(database(context),
+                installed != null ? installed : ApiClient.create(context));
     }
 
     /**
