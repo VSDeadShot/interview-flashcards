@@ -180,9 +180,9 @@ public final class Graph {
     }
 
     /**
-     * The same repository with the means to ask for a batch. Generating is the only thing in
-     * this app that has to reach a server, so this is the only accessor here that builds a
-     * card API client.
+     * The same repository with the means to ask for a batch. Generating has to reach a server,
+     * so this is one of the two accessors here that build a card API client;
+     * {@link #topicCreator} is the other.
      *
      * <p>The split from {@link #candidates} predates tokens and outlives them. It existed
      * because the API key was refused at construction, so one accessor would have taken the

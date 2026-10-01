@@ -113,9 +113,10 @@ public final class GenerateViewModel extends AndroidViewModel {
                 state.postValue(new GenerateState(false, null,
                         messageFor(Failure.of(e), e.status())));
             } catch (IOException e) {
-                // The one feature in this app that a dead radio actually stops. Everything else
-                // was built so the network being absent changes nothing — though not every
-                // IOException is a dead radio, which is what Failure.of sorts out.
+                // One of the two features in this app that a dead radio actually stops, adding a
+                // topic being the other. Everything else was built so the network being absent
+                // changes nothing — though not every IOException is a dead radio, which is what
+                // Failure.of sorts out.
                 state.postValue(new GenerateState(false, null, messageFor(Failure.of(e), 0)));
             }
         });

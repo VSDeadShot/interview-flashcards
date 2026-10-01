@@ -47,8 +47,9 @@ the app saying "No topics yet" with no way forward from the phone.
 `user_id` the way the app always has, rather than by hand-written SQL. Neon was seeded this way
 on 2026-09-26 with: Operating Systems, DBMS, OOP, Computer Networks, System Design.
 
-**Consequences.** Any new or rebuilt database needs the same manual step. Creating a topic from
-Android is a known gap on the backlog. Topics cannot be renamed or deleted by any route.
+**Consequences.** Any new or rebuilt database needs the same manual step. Since 2026-10-01 the
+Android app can take it too: New topic, in the Cards tab's overflow menu, calls the same route.
+Topics cannot be renamed or deleted by any route.
 
 ## 4. The Gemini API key is kept out of the repository
 

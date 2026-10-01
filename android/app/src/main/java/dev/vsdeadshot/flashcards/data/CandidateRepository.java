@@ -60,8 +60,9 @@ public final class CandidateRepository {
      * queued and retried behind them. Nothing here touches {@code SyncEngine}, and a candidate
      * never enters {@code pending_review}.
      *
-     * <p>It is also the one thing in this app that cannot work offline. Everything else was built
-     * so that the radio being off changes nothing; a model has to be asked.
+     * <p>It is also one of the two things in this app that cannot work offline — a model has to
+     * be asked, as a server has to issue a new topic's id. Everything else was built so that the
+     * radio being off changes nothing.
      *
      * @return how many candidates were stored
      * @throws dev.vsdeadshot.flashcards.data.remote.ApiException if the server refused

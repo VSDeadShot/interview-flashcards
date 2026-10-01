@@ -288,22 +288,34 @@ breakdown is inflated into a plain `LinearLayout` rather than drawn by a `Recycl
 scroll with the figures above them, a `RecyclerView` nested in a scrolling parent has to be told to
 stop recycling before it will lay out at all, and the list is bounded by the number of topics.
 
-**Generation is the one thing here that is not offline-first, and not outbox work.** `POST
-/cards/generate` runs because a person pressed a button and is watching, so its failure is theirs
-to see and decide about rather than something queued and retried behind them — nothing about it
-touches `SyncEngine` or `ApiException.disposition()`. Everything else that talks to the server
-does go through that path, which is why the exception needs stating. Candidates live in their own
-table rather than as a flag on `card`, because a candidate must never reach the study queue, the
-outbox, or a pull's delete-scope. Accepting one writes through the ordinary authoring path, so
-from that moment it is an ordinary unsynced card and everything already true of those applies.
+**Generation is not offline-first, and not outbox work.** `POST /cards/generate` runs because a
+person pressed a button and is watching, so its failure is theirs to see and decide about rather
+than something queued and retried behind them — nothing about it touches `SyncEngine` or
+`ApiException.disposition()`. Everything else that talks to the server does go through that path,
+adding a topic aside, which is why the exceptions need stating. Candidates live in their own table
+rather than as a flag on `card`, because a candidate must never reach the study queue, the outbox,
+or a pull's delete-scope. Accepting one writes through the ordinary authoring path, so from that
+moment it is an ordinary unsynced card and everything already true of those applies.
+
+**Adding a topic is the second action that talks to the server while somebody waits, after
+generation.** `NewTopicSheet`, opened from the card list's overflow, sends `POST /topics` and
+fails in the sheet with the name still typed rather than queuing anything. It cannot be outbox
+work: a topic is cached under the server's id, so it has no identity here until the server has
+answered. It runs on `Graph.remoteIo()`, not `Graph.io()`, so a slow server cannot stall every
+screen's reads, and a success writes the answer straight into `topic`, so the new chip is there
+before the next pull. **Known gap, not fixed:** a sync already in flight, which fetched the topic
+list before the create landed, runs `deleteMissing` after it and removes the new topic from the
+cache until the next sync brings it back. `syncNow` cannot close that window — under `KEEP` it
+adds nothing while a run is queued or running — and the gap repairs itself, so it is written down
+rather than engineered around.
 
 **`Graph` has two accessors for one repository, and the split outlived its original reason.**
 `Graph.candidates` reads the band, accepts and discards without an API client; `Graph.generator`
-is the only accessor in the app that builds a card client. It began as a workaround —
-`ApiKeyInterceptor` refused a blank key at construction, so one accessor would have taken the
-whole card list down on a build with no key — and that constraint is gone with the key. It stays
-because reading, accepting and discarding a candidate genuinely do not touch a network, and an
-accessor that says so is worth more than one that is merely shorter.
+is one of the two accessors in the app that build a card client, `Graph.topicCreator` the other.
+It began as a workaround — `ApiKeyInterceptor` refused a blank key at construction, so one
+accessor would have taken the whole card list down on a build with no key — and that constraint
+is gone with the key. It stays because reading, accepting and discarding a candidate genuinely do
+not touch a network, and an accessor that says so is worth more than one that is merely shorter.
 
 **The editor is one destination serving three titles and two sources.** `android:label` is
 `{title}`, so "New card", "Edit card" and "Add generated card" cost neither a second destination
@@ -442,7 +454,10 @@ What a mock server cannot prove is that this client and Jackson agree on the wir
 
 Recorded so each is decided on purpose rather than rediscovered. **None of these is implemented.**
 
-- **Creating a topic from the app.** See `docs/DECISIONS.md`, entry 3.
+- **Generation's request runs on `Graph.io()`.** `GenerateViewModel.generate` queues a call allowed 60 seconds on the cache's one thread, so every screen's reads wait behind it for as long — the freeze sign-in had before `Graph.authIo()`, and the one `Graph.remoteIo()` exists to avoid. Moving the request there is the fix.
+- **Generation reports a `401` as "not set up correctly".** `GenerateViewModel.messageFor` sends it to `generate_error_misconfigured`, and `GenerateErrorMessageTest.anUnauthenticatedClientIsAlsoSomethingOnlyTheServerCanFix` pins that — a reading from the shared-key days, when a `401` meant a broken build. Since tokens it means there is no session or it could not be renewed, so it should ask for a sign-in, as `NewTopicViewModel.messageFor` does, and the test should change with it.
+- **A topic cannot be deleted or renamed.** No route does either (`docs/DECISIONS.md`, entry 3), so a mistyped topic can only be removed by hand in the database — the only way to clear "Operating System" and "Bio", which the 2026-10-01 device check created in production by mistake. It needs a design before a route: what becomes of the topic's cards (refuse while any exist, archive them, or move them), of outbox work still addressed to it on a device — a card written offline under it would otherwise be refused with a `404` and parked — and how a device drops it, which today is the pull's `deleteMissing` and nothing more deliberate.
+- **Near-duplicate topics slip through.** The server rejects only an exact slug match, so "Operating System" was created beside "Operating Systems" without a word. The preferred direction is a check in the app before the request: compare the name against the cached topics and ask "Did you mean Operating Systems?", with a way to create it anyway. Not plural stemming on the server, which would have to guess at English and would refuse names somebody meant.
 - **`SyncWorkerTest.aRunWithNothingLeftOverIsDone` takes 20 seconds for no reason.** It queues answers for topics and cards but not for `/stats`, which the pull fetches last. `MockWebServer`'s default dispatcher waits for a response that never comes, the client times out at its 20-second default, and the pull swallows a failed stats fetch by design — so the test passes, slowly. Queuing a `/stats` answer fixes it. The suite's one deliberately slow test is `SignInTimeoutTest`, which needs 25 seconds to prove sign-in outlasts that same default; this one should not be a second.
 - **`SyncWorker` runs while signed out, and every request it makes is a `401`.** Nothing checks for a session: with no token `AuthInterceptor` simply sends no header, and the authenticator has no refresh token to try. Seen on the S24 on 2026-09-30: turning airplane mode off while signed out ran a sync at once (`Sync FAILED` at its 20-second timeout), about ten seconds before sign-in was tapped, which started waking Render early and ate into the 150-second sign-in allowance; a second run, sent before sign-in had saved a token, came back `Sync STOPPED` a second after the server woke. It should skip without a session — and a sign-in should then ask for a sync, not wait for the next period.
 - **`versionName`/`versionCode` have been `0.1`/`1` since August.** Every build installs as the same version, so the phone cannot say which one it is running — the 2026-09-30 device check had to confirm its install by comparing the APK's SHA-256 and `lastUpdateTime`, and a build from 2026-08-23 sat on the S24 unnoticed for five weeks, showing messages the code no longer had. They should move with every build that goes onto a device.
