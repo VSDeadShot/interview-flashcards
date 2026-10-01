@@ -34,6 +34,7 @@ public final class Graph {
 
     private static volatile ExecutorService io;
     private static volatile ExecutorService authIo;
+    private static volatile ExecutorService remoteIo;
 
     /** Non-null only in tests; see {@link #installDatabase}. */
     private static volatile FlashcardsDatabase database;
@@ -85,6 +86,32 @@ public final class Graph {
             }
         }
         return authIo;
+    }
+
+    /**
+     * The thread a request somebody is watching runs on — creating a topic.
+     *
+     * <p>Not {@link #io()}, for {@link #authIo()}'s reason: the request can wait twenty seconds on
+     * a slow server, and every screen's reads queue on that one thread. Not {@code authIo} either,
+     * which says what it is for in its name and is worth keeping that way. Writing the answer to
+     * Room from here is safe without ordering against {@code io}: it adds a row nobody is editing,
+     * and the screens learn of it through invalidation like any other write.
+     */
+    public static Executor remoteIo() {
+        if (remoteIo == null) {
+            synchronized (Graph.class) {
+                if (remoteIo == null) {
+                    remoteIo = Executors.newSingleThreadExecutor(runnable -> {
+                        Thread thread = new Thread(runnable, "flashcards-remote");
+                        // Daemon for io's reason. A create still waiting when the last screen goes
+                        // either lands on the server or does not; nothing here is half-written.
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                }
+            }
+        }
+        return remoteIo;
     }
 
     public static FlashcardsDatabase database(Context context) {

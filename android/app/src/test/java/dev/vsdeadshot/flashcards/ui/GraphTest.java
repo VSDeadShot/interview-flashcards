@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 /**
- * The two background threads, and the one property that makes them two.
+ * The background threads, and the one property that makes them more than one.
  *
  * <p>No Robolectric: the executors touch nothing in the framework.
  */
@@ -34,6 +34,32 @@ public class GraphTest {
         Graph.io().execute(read::countDown);
         try {
             assertTrue("a read of the cache must not queue behind a sign-in still in flight",
+                    read.await(2, TimeUnit.SECONDS));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    /**
+     * Creating a topic waits on the network too — twenty seconds before it gives up on a server
+     * that is slow to answer. Queued on {@link Graph#io()} it would stall every screen's reads
+     * for that long, which is the mistake sign-in made and {@link Graph#authIo()} fixed.
+     */
+    @Test
+    public void aRequestWaitingOnTheNetworkDoesNotHoldUpTheCache() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        Graph.remoteIo().execute(() -> {
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        CountDownLatch read = new CountDownLatch(1);
+        Graph.io().execute(read::countDown);
+        try {
+            assertTrue("a read of the cache must not queue behind a request still in flight",
                     read.await(2, TimeUnit.SECONDS));
         } finally {
             release.countDown();
