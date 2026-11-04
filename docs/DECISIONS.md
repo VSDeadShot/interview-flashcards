@@ -65,3 +65,40 @@ Render environment variable of the same name. It was rotated on 2026-09-26.
 **Consequences.** No file in the repo, including gitignored ones, holds the key. `bootRun` picks
 it up from the environment. Rotating it means updating both places. A key that is set but
 rejected by Gemini surfaces as a bodyless `500` from `POST /cards/generate`.
+
+## 5. Base images are pinned by index digest and re-checked monthly
+
+*2026-11-02*
+
+**Context.** Render published an advisory about eight compromised eMudhra intermediates. They
+chain to emSign ECC Root CA - G3, and were also cross-signed by Sectigo to AAA Certificate
+Services; those cross-signs were revoked on 2026-10-19. Temurin 21.0.12.1+1, which the floating
+`21-jdk`/`21-jre` tags served until 2026-10-29, still trusted G3. 21.0.13+9 removes it, along with
+emSign ECC Root CA - C3 and emSign Root CA - C1. Java does not check revocation by default, and
+`blocked.certs` gained nothing in 21.0.13, so the contents of `cacerts` are the whole answer.
+
+**Decision.** Both stages of `backend/Dockerfile` name a version tag *and* the multi-arch **index**
+digest (`eclipse-temurin:21.0.13_9-jre@sha256:…`):
+
+- Not the tag alone, because a tag moves: `21-jre` changed what it served on 2026-10-29 without
+  anything in this repository changing.
+- Not a per-architecture digest, because that names one platform's image; the index digest is
+  just as immutable and still resolves to the right image for whatever builds it.
+- The tag is only there so a reader can see the version. When a digest is given, Docker ignores it.
+
+Re-check the digests on the **first Sunday of each month**, and bump whenever one has changed.
+Temurin rebuilds an image under the same tag for Ubuntu security updates. Separately, move to the
+new version tag at each **quarterly Temurin release** (January, April, July, October).
+
+emSign Root CA - G1 is still in 21.0.13's `cacerts` and is **kept deliberately**. It is not in
+the compromised chain, and Mozilla and Chrome still trust it. AAA Certificate Services is in
+neither the 21.0.12.1 nor the 21.0.13 `cacerts`, so the Sectigo cross-sign gives Java no path either.
+
+**Consequences.** The fix shipped as `145a1de` and was verified live on 2026-11-02: Render's
+startup log reports Java 21.0.13, and sign-in and sync work from the S24. On that date the
+floating tags already resolved to the pinned digests, so the pin changed no bytes. What it changes
+is that the runtime can no longer move without a commit. The cost is that the image's Ubuntu
+packages are frozen between bumps, which is what the monthly re-check is for. There is no Docker on
+the development machine, so the version and `cacerts` were read by pulling the image's
+`linux/amd64` layers straight from the registry. That reads the files rather than running the JVM;
+the startup log is the runtime proof.
