@@ -36,7 +36,7 @@ It also **binds `127.0.0.1` rather than every interface** (`server.address`). On
 
 That database server should listen on loopback only (`listen_addresses = 'localhost'`). `pg_hba.conf` is what actually refuses a remote login — it permits `127.0.0.1/32` and `::1/128` under `scram-sha-256` and nothing else — and that was verified rather than assumed: a connection from the machine’s own LAN address completed the TCP handshake and was then refused with *no pg_hba.conf entry*. Narrowing `listen_addresses` removes the pre-auth surface sitting behind that check, which is the half a host-based rule cannot cover.
 
-**The deployed database is not on Render.** Since 2026-09-25 it is Neon — PostgreSQL 18.6, AWS US West 2 (Oregon) — after Render suspended its free-tier database and every daily cold start crashed with `UnknownHostException` resolving a host that no longer existed. The backend uses Neon's **direct, non-pooled** endpoint with `sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` — the factory is what makes pgjdbc verify against the JVM truststore rather than look for `~/.postgresql/root.crt`, so reaching the database now depends on the image's `cacerts`. **Render sets `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`**, which override `application.properties`; the `FLASHCARDS_DB_USER` and `FLASHCARDS_DB_PASSWORD` that file names are read only for the local Postgres. The string Neon's console hands out is libpq-style, not JDBC: the configured URL needs the `jdbc:` prefix and must not carry `channel_binding`. Nothing seeds a fresh database; topics exist only once somebody `POST`s them to `/api/v1/topics`. `docs/DECISIONS.md` records all of this.
+**The deployed database is not on Render.** Since 2026-09-25 it is Neon — PostgreSQL 18.7, AWS US West 2 (Oregon) — after Render suspended its free-tier database and every daily cold start crashed with `UnknownHostException` resolving a host that no longer existed. The backend uses Neon's **direct, non-pooled** endpoint with `sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` — the factory is what makes pgjdbc verify against the JVM truststore rather than look for `~/.postgresql/root.crt`, so reaching the database now depends on the image's `cacerts`. **Render sets `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`**, which override `application.properties`; the `FLASHCARDS_DB_USER` and `FLASHCARDS_DB_PASSWORD` that file names are read only for the local Postgres. The string Neon's console hands out is libpq-style, not JDBC: the configured URL needs the `jdbc:` prefix and must not carry `channel_binding`. Nothing seeds a fresh database; topics exist only once somebody `POST`s them to `/api/v1/topics`. `docs/DECISIONS.md` records all of this.
 
 `./gradlew test` needs none of that. Tests start their own Postgres (see below).
 
@@ -63,7 +63,7 @@ flashcards.baseUrl=http://10.0.2.2:8080/api/v1/
 
 ## Backend architecture
 
-**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17 locally and in tests — **18.6 on Neon** in production, see [The version gap](#the-version-gap) — JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
+**Stack**: Java 21 (Temurin), Spring Boot 4.1.0, Gradle 9.5.1, Spring Data JPA/Hibernate, Flyway, PostgreSQL 17 locally and in tests — **18.7 on Neon** in production, see [The version gap](#the-version-gap) — JUnit 5. Group `dev.vsdeadshot`, base package `dev.vsdeadshot.flashcards`.
 
 **Spring Boot 4 renamed the starters.** It is `spring-boot-starter-webmvc`, not `-web`, and the test starter is split per module — `spring-boot-starter-data-jpa-test`, `-webmvc-test`, `-flyway-test`, `-validation-test` — rather than one `spring-boot-starter-test`. Copying dependency snippets from Boot 3 documentation or older answers will not resolve. Tests use plain JUnit `Assertions`; AssertJ is not on the classpath.
 
@@ -142,7 +142,7 @@ This matters beyond convenience: an in-memory stand-in like H2 would quietly acc
 
 #### The version gap
 
-**They do not match production.** Production is Neon's **PostgreSQL 18.6**; the development server is 17.10 and the test binaries are Zonky 17.5.0. The gap was first found on 2026-08-23 against Render's 18.4 and carried over to Neon.
+**They do not match production.** Production is Neon's **PostgreSQL 18.7**; the development server is 17.10 and the test binaries are Zonky 17.5.0. The gap was first found on 2026-08-23 against Render's 18.4 and carried over to Neon, which was on 18.6 at the move; the startup log reported 18.7 on 2026-11-15.
 
 **The migrations are safe across it.** They use nothing newer than identity columns, `timestamptz`, `check` constraints, a partial index and `gen_random_uuid()` — all stable since PostgreSQL 13 — and all six have applied cleanly from nothing on both 18.4 and 18.6.
 

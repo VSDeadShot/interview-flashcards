@@ -7,7 +7,7 @@ reference the Spring Boot backend and the Android client are both written agains
 
 | Decision | Choice | Why |
 |---|---|---|
-| Database | PostgreSQL — **18.6 on Neon** in production, 17 locally | Production is Neon's managed 18.6; development runs a real 17 server on `127.0.0.1:5432`. Schema managed by Flyway. The major-version gap is recorded in `CLAUDE.md` under *The version gap*. |
+| Database | PostgreSQL — **18.7 on Neon** in production, 17 locally | Production is Neon's managed 18.7; development runs a real 17 server on `127.0.0.1:5432`. Schema managed by Flyway. The major-version gap is recorded in `CLAUDE.md` under *The version gap*. |
 | Test database | `zonky` embedded Postgres 17.5 | No Docker on this machine, so Testcontainers is out. `io.zonky.test:embedded-postgres` runs a real Postgres binary in-process — tests hit actual Postgres, not an H2 emulation. It is 17, one major version behind production. |
 | Scheduling state | Stored on `card` | Cards are user-authored, so card and its schedule are 1:1 per user. No join, no derivation. |
 | Review history | Append-only `review_log` | Kept for stats and streaks. **Never read to compute the next schedule.** |
@@ -32,7 +32,7 @@ card's schedule.
 
 ## Schema
 
-PostgreSQL 18.6 in production (Neon), 17 locally and in tests. All tables carry
+PostgreSQL 18.7 in production (Neon), 17 locally and in tests. All tables carry
 `user_id` (currently always the single configured user). Timestamps are
 `timestamptz`; `due_date` is a plain `date` — see [Timezone](#timezone) for which
 day that date is measured against.
