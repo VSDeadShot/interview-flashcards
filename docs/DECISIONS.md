@@ -102,3 +102,55 @@ packages are frozen between bumps, which is what the monthly re-check is for. Th
 the development machine, so the version and `cacerts` were read by pulling the image's
 `linux/amd64` layers straight from the registry. That reads the files rather than running the JVM;
 the startup log is the runtime proof.
+
+## 6. The Neon connection verifies the server's certificate
+
+*2026-11-15*
+
+**Context.** Since the move to Neon (see 2) the JDBC URL carried `sslmode=require`. In pgjdbc that
+encrypts the connection and verifies nothing. This was shown on 2026-10-28: pgjdbc completed a TLS
+handshake with Neon using a truststore that cannot validate Neon's certificate. Anything able to
+answer for the database's hostname would have been accepted as the database.
+
+**Decision.** The URL's parameters are now
+`sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory`:
+
+- `verify-full` checks both the certificate chain and the hostname.
+- The factory is what makes pgjdbc validate against the JVM's truststore. Without it pgjdbc looks
+  for `~/.postgresql/root.crt`, which this deployment does not provide.
+- `channelBinding`, which pgjdbc 42.7.11 supports, is deliberately left for later.
+
+This is a change to Render's environment and to no file in the repository. Render sets
+`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`, which bind
+onto `spring.datasource.*` and override `application.properties`. The `FLASHCARDS_DB_USER` and
+`FLASHCARDS_DB_PASSWORD` that file names are read only for the local Postgres, so a local run
+against Neon has to set Render's three names to mirror production.
+
+**Consequences.** Verified on 2026-11-15, before and after the change went live:
+
+- Locally, `bootRun` against Neon with the new parameters and Flyway disabled started normally on
+  the development machine's Temurin 21.0.12.1.
+- The same jar, given a truststore holding only ISRG Root X2, refused to start with
+  `PKIX path building failed` before authentication was attempted. That is the proof the
+  certificate is actually being checked.
+- On Render the startup log reached `Started FlashcardsApplication` with no PKIX or hostname
+  error, and sign-in and a sync work from the S24.
+
+Database connectivity now depends on the JVM truststore, and so on the base image. The monthly
+digest re-check and the quarterly Temurin bump in 5 are therefore also checks on whether the
+backend can still reach its database; 5 also records what was found in that truststore.
+
+The chain Neon serves for this endpoint is a wildcard leaf for its `c-4` cell
+(`*.c-4.us-west-2.aws.neon.tech`) issued by Let's Encrypt YR1, then ISRG Root YR cross-signed by
+ISRG Root X1. **Trust rests on ISRG Root X1.** Root YR itself is in neither the 21.0.12.1 nor the
+21.0.13 `cacerts`, so the path exists only while Neon keeps serving the cross-signed Root YR. That
+is the residual risk: if Neon stops sending the cross-sign, or a base image arrives without Root
+X1, every connection fails with the PKIX error above.
+
+The leaf expires on 2027-01-10 and is expected to be renewed around 2026-12-11. **Do a sign-in
+check from the S24 around 2026-12-12.**
+
+If a deploy fails, `PKIX path building failed` means the truststore and `could not be verified by
+hostnameverifier` means the hostname. Rolling back means restoring the old value of
+`SPRING_DATASOURCE_URL` and redeploying; Render's Rollback button does not revert environment
+variables.
